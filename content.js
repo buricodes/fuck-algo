@@ -282,7 +282,7 @@
     watchCount = videoData[videoId].watchCount || 0;
 
     const audioName = extractAudioName();
-    if (audioName) {
+    if (audioName && videoData[videoId].audio !== audioName) {
       videoData[videoId].audio = audioName;
       await saveVideoData();
     }
@@ -501,19 +501,22 @@
       }
     });
 
-    chrome.storage.onChanged.addListener((changes, area) => {
-      if (area === 'local') {
-        loadSettings().then(() => {
-          const videoId = getVideoId();
-          if (videoId) {
-            handleVideoChange(videoId);
-          }
-          updateWatchCountIndicator();
+    const SETTINGS_KEYS = ['enabled', 'maxWatchCount', 'blockedKeywords', 'blockedAudios'];
 
-          resetFeedFilterCache();
-          filterFeedItems();
-        });
-      }
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== 'local') return;
+      if (!SETTINGS_KEYS.some(key => key in changes)) return;
+
+      loadSettings().then(() => {
+        const videoId = getVideoId();
+        if (videoId) {
+          handleVideoChange(videoId);
+        }
+        updateWatchCountIndicator();
+
+        resetFeedFilterCache();
+        filterFeedItems();
+      });
     });
 
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
