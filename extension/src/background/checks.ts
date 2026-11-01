@@ -4,7 +4,7 @@ import { read } from '@/shared/storage'
 import type { CheckResult, ItemInfo, Result } from '@/shared/types'
 
 import { call } from './api'
-import { spend } from './licence'
+import { spend } from './account'
 
 const BATCH_SIZE = 25
 const BATCH_DELAY_MS = 350
@@ -84,7 +84,9 @@ async function flush() {
 
   if (!result.ok) {
     lastError = result
-    pausedUntil = Date.now() + (result.code === 'trial_exhausted' ? 30 * 60_000 : 60_000)
+    pausedUntil =
+      Date.now() +
+      (result.code === 'trial_exhausted' || result.code === 'unauthorised' ? 10 * 60_000 : 60_000)
     batch.forEach((w) => w.resolve(null))
     return
   }

@@ -82,10 +82,41 @@ func (p *fakePayments) ParseWebhook(_ []byte, h payments.WebhookHeaders, _ time.
 	return &event, nil
 }
 
+const tokenPrefix = "session:"
+
+type fakeVerifier struct {
+	available bool
+}
+
+func (v *fakeVerifier) Available() bool { return v.available }
+
+func (v *fakeVerifier) Verify(_ context.Context, token string) (string, error) {
+	clerkID, ok := strings.CutPrefix(token, tokenPrefix)
+	if !ok || clerkID == "" {
+		return "", errors.New("token not signed by clerk")
+	}
+	return clerkID, nil
+}
+
+type fakeDirectory struct {
+	fail  bool
+	calls int
+}
+
+func (d *fakeDirectory) PrimaryEmail(_ context.Context, clerkID string) (string, error) {
+	d.calls++
+	if d.fail {
+		return "", errBoom
+	}
+	return clerkID + "@example.com", nil
+}
+
 type testEnv struct {
 	t        *testing.T
 	router   *gin.Engine
 	store    *store.Memory
+	auth     *fakeVerifier
+	users    *fakeDirectory
 	checks   *fakeModel
 	rules    *fakeModel
 	stt      *fakeSTT
@@ -99,9 +130,8 @@ func testConfig() *config.Config {
 		Env:        config.EnvDevelopment,
 		WebsiteURL: "https://fuckalgo.app",
 		Trial:      config.Trial{Voice: 2, Checks: 3},
-		Licence:    config.Licence{MaxInstalls: 5, RevealHours: 24},
 		Limits:     config.Limits{BodyBytes: 1 << 20, TranscribeBodyBytes: 6 << 20, AudioBytes: 5 << 20},
-		RateLimits: config.RateLimits{Installs: open, Checkout: open, VoiceToken: open, VoiceTranscribe: open, VoiceRules: open, Checks: open},
+		RateLimits: config.RateLimits{Checkout: open, VoiceToken: open, VoiceTranscribe: open, VoiceRules: open, Checks: open},
 	}
 }
 
@@ -115,6 +145,8 @@ func newEnvWith(t *testing.T, cfg *config.Config) *testEnv {
 	e := &testEnv{
 		t:        t,
 		store:    store.NewMemory(),
+		auth:     &fakeVerifier{available: true},
+		users:    &fakeDirectory{},
 		checks:   &fakeModel{available: true},
 		rules:    &fakeModel{available: true},
 		stt:      &fakeSTT{available: true},
@@ -125,6 +157,8 @@ func newEnvWith(t *testing.T, cfg *config.Config) *testEnv {
 	router, err := httpapi.NewRouter(httpapi.Deps{
 		Config:   cfg,
 		Store:    e.store,
+		Auth:     e.auth,
+		Users:    e.users,
 		STT:      e.stt,
 		Checks:   checks.New(checks.NewModelJudge(e.checks), 24*time.Hour, 1000, clock),
 		Voice:    voice.New(e.rules),
@@ -199,34 +233,35 @@ func (e *testEnv) do(method, path, token string, body any) reply {
 	return e.send(req)
 }
 
-type installData struct {
-	InstallID string `json:"installId"`
-	Token     string `json:"token"`
-	Licence   struct {
-		Status  string  `json:"status"`
-		KeyHint *string `json:"keyHint"`
-		Trial   struct {
+type meData struct {
+	UserID  string `json:"userId"`
+	Email   string `json:"email"`
+	Licence struct {
+		Status string `json:"status"`
+		Trial  struct {
 			VoiceLeft  int `json:"voiceLeft"`
 			ChecksLeft int `json:"checksLeft"`
 		} `json:"trial"`
 	} `json:"licence"`
 }
 
-func (e *testEnv) install() installData {
-	e.t.Helper()
-	r := e.do(http.MethodPost, "/v1/installs", "", map[string]string{"version": "1.0.0", "browser": "chrome"})
-	if r.status != http.StatusOK {
-		e.t.Fatalf("creating install: %d %s", r.status, r.code())
-	}
-	var data installData
-	r.into(e.t, &data)
-	return data
+type account struct {
+	ClerkID string
+	Token   string
 }
 
-func (e *testEnv) me(token string) installData {
+func (e *testEnv) signIn(clerkID string) account {
+	return account{ClerkID: clerkID, Token: tokenPrefix + clerkID}
+}
+
+func (e *testEnv) me(token string) meData {
 	e.t.Helper()
-	var data installData
-	e.do(http.MethodGet, "/v1/me", token, nil).into(e.t, &data)
+	r := e.do(http.MethodGet, "/v1/me", token, nil)
+	if r.status != http.StatusOK {
+		e.t.Fatalf("me: %d %s", r.status, r.code())
+	}
+	var data meData
+	r.into(e.t, &data)
 	return data
 }
 
@@ -243,22 +278,17 @@ func (e *testEnv) webhook(id string) reply {
 	return e.send(e.webhookRequest(id, "v1,good"))
 }
 
-func (e *testEnv) buyLicence(installID, sessionID string) string {
+func (e *testEnv) pay(clerkID, sessionID string) {
 	e.t.Helper()
-	e.payments.event = &payments.PaymentEvent{EventType: payments.EventPaymentSucceeded, PaymentID: "pay_" + sessionID, CheckoutSessionID: sessionID, InstallID: installID, Amount: 500, Currency: "USD"}
+	e.payments.event = &payments.PaymentEvent{EventType: payments.EventPaymentSucceeded, PaymentID: "pay_" + sessionID, CheckoutSessionID: sessionID, UserID: clerkID, Amount: 500, Currency: "USD"}
 	if r := e.webhook("msg_" + sessionID); r.status != http.StatusOK {
 		e.t.Fatalf("webhook failed: %d %s", r.status, r.code())
 	}
-	s, err := e.store.CheckoutSession(context.Background(), sessionID)
-	if err != nil || s.RevealKey == nil {
-		e.t.Fatalf("no key stored for session %s: %v", sessionID, err)
-	}
-	return *s.RevealKey
 }
 
-func (e *testEnv) startCheckout(installID *string) string {
+func (e *testEnv) startCheckout(token string) string {
 	e.t.Helper()
-	r := e.do(http.MethodPost, "/v1/checkout", "", map[string]any{"installId": installID})
+	r := e.do(http.MethodPost, "/v1/checkout", token, map[string]any{})
 	if r.status != http.StatusOK {
 		e.t.Fatalf("checkout failed: %d %s", r.status, r.code())
 	}

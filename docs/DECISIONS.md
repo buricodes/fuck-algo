@@ -20,15 +20,15 @@ Reason: Keywords and exact titles can be matched instantly, offline and for free
 
 Trade off: Without AI, the repeat blocker falls back to channel based limits.
 
-## 3. No accounts: install tokens and licence keys
+## 3. Clerk accounts, signed in on the website
 
-Status: accepted
+Status: accepted (replaces "no accounts: install tokens and licence keys")
 
-Reason: A $5 one time purchase should not need a sign up. Each browser registers once and gets a random token. Paying creates a key like `FA-XXXX-XXXX-XXXX-XXXX` that unlocks up to five browsers.
+Reason: The same structure as Bui. People sign in on the website and the extension shares that session through Clerk's sync host, so there is one sign in and nothing to paste. A purchase belongs to the account, so it unlocks every browser the person signs in on, and a lost device loses nothing.
 
-Alternatives considered: Clerk accounts as in Bui. More friction and more personal data for little gain.
+Alternatives considered: Install tokens and pasted licence keys. No sign up, but keys get lost or shared and trials are trivially reset.
 
-Trade off: Lost keys are recovered through the Dodo receipt email, not a password reset.
+Trade off: AI features need an account. Local blocking still works signed out.
 
 ## 4. Go server, reusing server-bui
 

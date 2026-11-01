@@ -1,5 +1,6 @@
-import { read, write } from '@/shared/storage'
-import type { ApiErrorCode, Install, Result } from '@/shared/types'
+import type { ApiErrorCode, Result } from '@/shared/types'
+
+import { forgetToken, sessionToken } from './clerk'
 
 export const API_URL =
   (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8787'
@@ -9,37 +10,16 @@ export const WEBSITE_URL =
 type Envelope<T> =
   { ok: true; data: T } | { ok: false; error: { code: ApiErrorCode; message: string } }
 
+export const SIGN_IN_MESSAGE = 'Sign in on the Fuck Algo website to use voice and AI checks.'
+
 type CallOptions = { body?: unknown; form?: FormData; auth?: boolean; method?: 'GET' | 'POST' }
-
-let registering: Promise<Install | null> | null = null
-
-export async function ensureInstall(): Promise<Install | null> {
-  const stored = await read('install')
-  if (stored) return stored
-  registering ??= (async () => {
-    const result = await call<{ installId: string; token: string; licence: unknown }>(
-      '/v1/installs',
-      {
-        auth: false,
-        body: { version: chrome.runtime.getManifest().version, browser: 'chrome' },
-      },
-    )
-    if (!result.ok) return null
-    const install = { id: result.data.installId, token: result.data.token }
-    await write('install', install)
-    return install
-  })().finally(() => {
-    registering = null
-  })
-  return registering
-}
 
 export async function call<T>(path: string, options: CallOptions = {}): Promise<Result<T>> {
   const headers: Record<string, string> = {}
   if (options.auth !== false) {
-    const install = await ensureInstall()
-    if (!install) return { ok: false, code: 'network', message: 'Could not reach Fuck Algo.' }
-    headers.Authorization = `Bearer ${install.token}`
+    const token = await sessionToken()
+    if (!token) return { ok: false, code: 'unauthorised', message: SIGN_IN_MESSAGE }
+    headers.Authorization = `Bearer ${token}`
   }
   let body: BodyInit | undefined
   if (options.form) body = options.form
@@ -71,8 +51,6 @@ export async function call<T>(path: string, options: CallOptions = {}): Promise<
   }
   if (envelope.ok) return { ok: true, data: envelope.data }
 
-  if (envelope.error.code === 'unauthorised' && options.auth !== false) {
-    await chrome.storage.local.remove('install')
-  }
+  if (envelope.error.code === 'unauthorised') forgetToken()
   return { ok: false, code: envelope.error.code, message: envelope.error.message }
 }

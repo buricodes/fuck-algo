@@ -14,6 +14,7 @@
     "format": "prettier --write ."
   },
   "dependencies": {
+    "@clerk/chrome-extension": "^3.1.103",
     "@fontsource-variable/archivo": "^5.2.6",
     "@fontsource-variable/geist": "^5.2.6",
     "@fontsource-variable/geist-mono": "^5.2.6",

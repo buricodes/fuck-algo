@@ -8,7 +8,7 @@ import { Icon, Mark } from '@/ui/components'
 import { useStore } from '@/ui/hooks/useStore'
 import { VoicePanel } from '@/ui/voice/VoicePanel'
 
-import { LicenceCard } from './LicenceCard'
+import { AccountCard } from './AccountCard'
 import { Activity } from './pages/Activity'
 import { Keywords } from './pages/Keywords'
 import { Repeat } from './pages/Repeat'
@@ -44,7 +44,7 @@ export function Settings() {
   useEffect(() => {
     const onHash = () => setPage(pageFromHash())
     window.addEventListener('hashchange', onHash)
-    void request('licence:refresh', {})
+    void request('account:refresh', {})
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
 
@@ -122,7 +122,7 @@ export function Settings() {
               {week.toLocaleString('en-GB')} blocked this week
             </div>
           </div>
-          <LicenceCard />
+          <AccountCard />
         </div>
       </aside>
 

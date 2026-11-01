@@ -12,11 +12,6 @@ trial:
   voice: 5
   checks: 300
 
-licence:
-  max_installs: 5
-  # How long the thanks page may show the full key after checkout.
-  reveal_hours: 24
-
 limits:
   body_bytes: 1048576            # 1 MB
   transcribe_body_bytes: 6291456 # 6 MB
@@ -64,10 +59,8 @@ checks_cache:
   max_entries: 100000
 
 rate_limits:
-  # Per client IP.
-  installs: { per_minute: 10, burst: 5 }
+  # Per signed in user.
   checkout: { per_minute: 10, burst: 5 }
-  # Per install.
   voice_token: { per_minute: 6, burst: 3 }
   voice_transcribe: { per_minute: 6, burst: 3 }
   voice_rules: { per_minute: 10, burst: 5 }

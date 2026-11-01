@@ -56,5 +56,3 @@ func RateLimit(rate config.Rate, key func(*gin.Context) string) gin.HandlerFunc 
 		response.Fail(c, apperr.New(apperr.RateLimited, "Too many requests. Slow down a little."))
 	}
 }
-
-func ByIP(c *gin.Context) string { return c.ClientIP() }

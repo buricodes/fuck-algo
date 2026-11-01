@@ -117,6 +117,11 @@ export function VoicePanel({
       {voice.error && (
         <div className="fa-voice-error" role="alert">
           <span>{voice.error.message}</span>
+          {voice.error.code === 'unauthorised' && (
+            <button type="button" onClick={() => void request('account:signin', {})}>
+              Sign in
+            </button>
+          )}
           {voice.error.code === 'trial_exhausted' && (
             <button type="button" onClick={() => void request('checkout:open', {})}>
               Unlock for $5

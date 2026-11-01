@@ -28,7 +28,7 @@ $5 once. No account, no subscription, no ads.
 ```
 fuck-algo/
   extension/   Chrome extension (Manifest V3, React 19, TypeScript, Vite)
-  server/      Go API: installs, licences, AI checks, voice rules, payments
+  server/      Go API: Clerk auth, AI checks, voice rules, payments
   docs/        Architecture, design, decisions, security, roadmap, API contract
   neon.ts      Neon Postgres project config
 ```
@@ -56,7 +56,7 @@ cd extension && cp .env.example .env && pnpm install && pnpm dev
 
 Then open `chrome://extensions`, turn on Developer mode, choose **Load unpacked** and pick `extension/dist-dev` (or `extension/dist` after `pnpm build`).
 
-The server runs without a database in development (in memory store). Set `DATABASE_URL` to the Neon connection string to persist installs and licences.
+The server runs without a database in development (in memory store). Set `DATABASE_URL` to the Neon connection string to persist users and payments.
 
 ## Checks
 

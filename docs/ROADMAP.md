@@ -60,6 +60,6 @@ Acceptance: a test mode payment shows a key on the thanks page and unlocks the p
 
 ## Later
 
-* Rule sync between a person's browsers using their licence key
+* Rule sync between a person's browsers through their account
 * Firefox and Safari
 * Per site action overrides

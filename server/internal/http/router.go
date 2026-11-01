@@ -42,18 +42,16 @@ func NewRouter(d Deps) (*gin.Engine, error) {
 func (h *handler) routes(v1 *gin.RouterGroup) {
 	limits := h.Config.RateLimits
 
-	v1.POST("/installs", middleware.RateLimit(limits.Installs, middleware.ByIP), h.createInstall)
-	v1.POST("/checkout", middleware.RateLimit(limits.Checkout, middleware.ByIP), h.createCheckout)
-	v1.GET("/checkout/:sessionId", h.checkoutStatus)
 	v1.POST("/webhooks/dodo", h.dodoWebhook)
 
-	authed := v1.Group("", h.requireInstall)
+	authed := v1.Group("", h.requireUser)
 	authed.GET("/me", h.me)
-	authed.POST("/licence/activate", h.activateLicence)
-	authed.POST("/voice/token", middleware.RateLimit(limits.VoiceToken, byInstall), h.voiceToken)
-	authed.POST("/voice/transcribe", middleware.RateLimit(limits.VoiceTranscribe, byInstall), h.voiceTranscribe)
-	authed.POST("/voice/rules", middleware.RateLimit(limits.VoiceRules, byInstall), h.voiceRules)
-	authed.POST("/checks", middleware.RateLimit(limits.Checks, byInstall), h.runChecks)
+	authed.POST("/checkout", middleware.RateLimit(limits.Checkout, byUser), h.createCheckout)
+	authed.GET("/checkout/:sessionId", h.checkoutStatus)
+	authed.POST("/voice/token", middleware.RateLimit(limits.VoiceToken, byUser), h.voiceToken)
+	authed.POST("/voice/transcribe", middleware.RateLimit(limits.VoiceTranscribe, byUser), h.voiceTranscribe)
+	authed.POST("/voice/rules", middleware.RateLimit(limits.VoiceRules, byUser), h.voiceRules)
+	authed.POST("/checks", middleware.RateLimit(limits.Checks, byUser), h.runChecks)
 }
 
 func (h *handler) bodyLimit(route string) int64 {

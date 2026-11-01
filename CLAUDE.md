@@ -21,7 +21,7 @@ Read these before writing code, in this order: README.md, docs/ARCHITECTURE.md, 
 * Voice audio goes to the speech to text provider only while the person is talking. It is never stored by us.
 * Fail open: if the server, AI or a site adapter breaks, the page shows as normal. Never leave content stuck blurred or pending.
 * The background service worker is the only writer of activity, stats and feed memory.
-* Secrets live in environment variables only, never in the repo or the extension bundle.
+* Secrets live in environment variables only, never in the repo or the extension bundle. The Clerk publishable key is the only key the extension and website may hold.
 
 ## Technical conventions
 

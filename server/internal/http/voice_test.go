@@ -13,9 +13,9 @@ import (
 
 func TestVoiceTokenSpendsTrial(t *testing.T) {
 	e := newEnv(t)
-	in := e.install()
+	u := e.signIn("user_a")
 	for i, want := range []int{200, 200, 402} {
-		r := e.do(http.MethodPost, "/v1/voice/token", in.Token, nil)
+		r := e.do(http.MethodPost, "/v1/voice/token", u.Token, nil)
 		if r.status != want {
 			t.Fatalf("call %d: got %d %s, want %d", i, r.status, r.code(), want)
 		}
@@ -23,36 +23,36 @@ func TestVoiceTokenSpendsTrial(t *testing.T) {
 			t.Fatalf("code = %s, want trial_exhausted", r.code())
 		}
 	}
-	if left := e.me(in.Token).Licence.Trial.VoiceLeft; left != 0 {
+	if left := e.me(u.Token).Licence.Trial.VoiceLeft; left != 0 {
 		t.Fatalf("voiceLeft = %d, want 0", left)
 	}
 }
 
 func TestVoiceTokenRefundsOnUpstreamFailure(t *testing.T) {
 	e := newEnv(t)
-	in := e.install()
+	u := e.signIn("user_a")
 	e.stt.fail = true
-	r := e.do(http.MethodPost, "/v1/voice/token", in.Token, nil)
+	r := e.do(http.MethodPost, "/v1/voice/token", u.Token, nil)
 	if r.status != http.StatusBadGateway || r.code() != "upstream" {
 		t.Fatalf("got %d %s", r.status, r.code())
 	}
-	if left := e.me(in.Token).Licence.Trial.VoiceLeft; left != 2 {
+	if left := e.me(u.Token).Licence.Trial.VoiceLeft; left != 2 {
 		t.Fatalf("voiceLeft = %d, want the use refunded", left)
 	}
 }
 
 func TestVoiceUnavailable(t *testing.T) {
 	e := newEnv(t)
-	in := e.install()
+	u := e.signIn("user_a")
 	e.stt.available = false
 	e.rules.available = false
 	for _, path := range []string{"/v1/voice/token", "/v1/voice/transcribe", "/v1/voice/rules"} {
-		r := e.do(http.MethodPost, path, in.Token, "{}")
+		r := e.do(http.MethodPost, path, u.Token, "{}")
 		if r.status != http.StatusServiceUnavailable || r.code() != "unavailable" {
 			t.Fatalf("%s: got %d %s", path, r.status, r.code())
 		}
 	}
-	if left := e.me(in.Token).Licence.Trial.VoiceLeft; left != 2 {
+	if left := e.me(u.Token).Licence.Trial.VoiceLeft; left != 2 {
 		t.Fatalf("voiceLeft = %d, want nothing spent", left)
 	}
 }
@@ -92,8 +92,8 @@ func TestVoiceTranscribe(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			e := newEnv(t)
-			in := e.install()
-			r := e.send(audioRequest(t, in.Token, tt.contentType, tt.filename, tt.audio))
+			u := e.signIn("user_a")
+			r := e.send(audioRequest(t, u.Token, tt.contentType, tt.filename, tt.audio))
 			if r.status != tt.status {
 				t.Fatalf("got %d %s, want %d", r.status, r.code(), tt.status)
 			}
@@ -105,7 +105,7 @@ func TestVoiceTranscribe(t *testing.T) {
 			if data.Transcript != tt.transcript {
 				t.Fatalf("transcript = %q, want %q", data.Transcript, tt.transcript)
 			}
-			if left := e.me(in.Token).Licence.Trial.VoiceLeft; left != 2 {
+			if left := e.me(u.Token).Licence.Trial.VoiceLeft; left != 2 {
 				t.Fatalf("transcribe spent a voice use")
 			}
 		})
@@ -127,9 +127,9 @@ const designRulesReply = `{
 
 func TestVoiceRules(t *testing.T) {
 	e := newEnv(t)
-	in := e.install()
+	u := e.signIn("user_a")
 	e.rules.reply = func(string) (string, error) { return designRulesReply, nil }
-	r := e.do(http.MethodPost, "/v1/voice/rules", in.Token, map[string]any{
+	r := e.do(http.MethodPost, "/v1/voice/rules", u.Token, map[string]any{
 		"transcript": "No GTA 6 spoilers, I'm waiting for the PC release. Way fewer gym bro videos. And blur anything about crypto.",
 		"now":        "2026-11-01T10:00:00Z",
 		"context":    map[string]any{"watchlist": []string{"Black Clover"}, "keywords": []string{"MrBeast"}, "topics": []string{"Gym bro advice"}},
@@ -160,16 +160,16 @@ func TestVoiceRules(t *testing.T) {
 	if !strings.Contains(e.rules.lastUser, "Sunday") || !strings.Contains(e.rules.lastUser, `"topics":["Gym bro advice"]`) {
 		t.Fatalf("model input is missing the weekday or context: %s", e.rules.lastUser)
 	}
-	if left := e.me(in.Token).Licence.Trial.VoiceLeft; left != 2 {
+	if left := e.me(u.Token).Licence.Trial.VoiceLeft; left != 2 {
 		t.Fatalf("rules spent a voice use")
 	}
 }
 
 func TestVoiceRulesEmpty(t *testing.T) {
 	e := newEnv(t)
-	in := e.install()
+	u := e.signIn("user_a")
 	e.rules.reply = func(string) (string, error) { return `{"rules": [], "summary": ""}`, nil }
-	r := e.do(http.MethodPost, "/v1/voice/rules", in.Token, map[string]any{"transcript": "hmm", "now": "2026-11-01T10:00:00Z"})
+	r := e.do(http.MethodPost, "/v1/voice/rules", u.Token, map[string]any{"transcript": "hmm", "now": "2026-11-01T10:00:00Z"})
 	if r.status != http.StatusOK || string(r.body.Data) != `{"rules":[],"summary":"Nothing to add: I didn't catch a rule in that."}` {
 		t.Fatalf("got %d %s", r.status, r.body.Data)
 	}
@@ -188,8 +188,8 @@ func TestVoiceRulesValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			e := newEnv(t)
-			in := e.install()
-			r := e.do(http.MethodPost, "/v1/voice/rules", in.Token, tt.body)
+			u := e.signIn("user_a")
+			r := e.do(http.MethodPost, "/v1/voice/rules", u.Token, tt.body)
 			if r.status != http.StatusBadRequest || r.code() != "bad_request" || e.rules.calls != 0 {
 				t.Fatalf("got %d %s after %d model calls", r.status, r.code(), e.rules.calls)
 			}
@@ -199,9 +199,9 @@ func TestVoiceRulesValidation(t *testing.T) {
 
 func TestVoiceRulesUpstreamError(t *testing.T) {
 	e := newEnv(t)
-	in := e.install()
+	u := e.signIn("user_a")
 	e.rules.reply = func(string) (string, error) { return "", errBoom }
-	r := e.do(http.MethodPost, "/v1/voice/rules", in.Token, map[string]any{"transcript": "hi", "now": "2026-11-01T10:00:00Z"})
+	r := e.do(http.MethodPost, "/v1/voice/rules", u.Token, map[string]any{"transcript": "hi", "now": "2026-11-01T10:00:00Z"})
 	if r.status != http.StatusInternalServerError || r.code() != "internal" {
 		t.Fatalf("got %d %s", r.status, r.code())
 	}

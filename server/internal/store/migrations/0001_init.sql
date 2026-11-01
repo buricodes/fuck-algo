@@ -1,41 +1,35 @@
-CREATE TABLE licences (
-    id                  uuid PRIMARY KEY,
-    key_hash            text NOT NULL UNIQUE,
-    key_hint            text NOT NULL,
-    email               text,
-    provider_payment_id text UNIQUE,
-    amount              bigint NOT NULL DEFAULT 0,
-    currency            text NOT NULL DEFAULT '',
-    status              text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'revoked')),
-    created_at          timestamptz NOT NULL DEFAULT now()
-);
-
-CREATE TABLE installs (
-    id           uuid PRIMARY KEY,
-    token_hash   text NOT NULL UNIQUE,
-    licence_id   uuid REFERENCES licences (id) ON DELETE SET NULL,
-    version      text NOT NULL,
-    browser      text NOT NULL,
+CREATE TABLE users (
+    id           bigserial PRIMARY KEY,
+    clerk_id     text NOT NULL UNIQUE,
+    email        text NOT NULL DEFAULT '',
     voice_used   integer NOT NULL DEFAULT 0 CHECK (voice_used >= 0),
     checks_used  integer NOT NULL DEFAULT 0 CHECK (checks_used >= 0),
+    licensed_at  timestamptz,
     created_at   timestamptz NOT NULL DEFAULT now(),
     last_seen_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX installs_licence_id_idx ON installs (licence_id);
-
 CREATE TABLE checkout_sessions (
     id                  text PRIMARY KEY,
-    install_id          uuid REFERENCES installs (id) ON DELETE SET NULL,
+    user_id             bigint NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     provider_session_id text,
     status              text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'paid')),
-    licence_id          uuid REFERENCES licences (id) ON DELETE SET NULL,
-    reveal_key          text,
     created_at          timestamptz NOT NULL DEFAULT now(),
     paid_at             timestamptz
 );
 
-CREATE INDEX checkout_sessions_reveal_idx ON checkout_sessions (created_at) WHERE reveal_key IS NOT NULL;
+CREATE INDEX checkout_sessions_user_id_idx ON checkout_sessions (user_id);
+
+CREATE TABLE payments (
+    id                  bigserial PRIMARY KEY,
+    user_id             bigint REFERENCES users (id) ON DELETE SET NULL,
+    provider_payment_id text NOT NULL UNIQUE,
+    amount              bigint NOT NULL DEFAULT 0,
+    currency            text NOT NULL DEFAULT '',
+    created_at          timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX payments_user_id_idx ON payments (user_id);
 
 CREATE TABLE webhook_events (
     provider    text NOT NULL,

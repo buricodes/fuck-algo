@@ -9,7 +9,6 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/buricodes/fuck-algo/server/internal/http/middleware"
-	"github.com/buricodes/fuck-algo/server/internal/service/licence"
 	"github.com/buricodes/fuck-algo/server/internal/service/payments"
 	"github.com/buricodes/fuck-algo/server/internal/store"
 	"github.com/buricodes/fuck-algo/server/pkg/apperr"
@@ -65,37 +64,28 @@ func (h *handler) parseWebhook(c *gin.Context) (*payments.PaymentEvent, error) {
 }
 
 func (h *handler) recordPayment(c *gin.Context, event *payments.PaymentEvent) error {
-	key, err := licence.NewKey()
-	if err != nil {
-		return err
-	}
-	installID := event.InstallID
-	if !licence.IsUUID(installID) {
-		installID = ""
-	}
-	err = h.Store.RecordPayment(c.Request.Context(), store.Payment{
+	ctx := c.Request.Context()
+	matched, err := h.Store.RecordPayment(ctx, store.Payment{
 		Provider:          payments.Provider,
 		WebhookID:         event.WebhookID,
 		EventType:         event.EventType,
 		ProviderPaymentID: event.PaymentID,
 		CheckoutSessionID: event.CheckoutSessionID,
-		InstallID:         installID,
-		Email:             event.Email,
+		ClerkID:           event.UserID,
 		Amount:            event.Amount,
 		Currency:          event.Currency,
-		LicenceID:         licence.NewUUID(),
-		KeyHash:           licence.HashKey(key),
-		KeyHint:           licence.Hint(key),
-		RevealKey:         key,
-		MaxInstalls:       h.Config.Licence.MaxInstalls,
 		At:                h.Now(),
 	})
-	if errors.Is(err, store.ErrDuplicate) {
-		slog.InfoContext(c.Request.Context(), "duplicate webhook ignored", "webhookId", event.WebhookID)
+	switch {
+	case errors.Is(err, store.ErrDuplicate):
+		slog.InfoContext(ctx, "duplicate webhook ignored", "webhookId", event.WebhookID)
 		return nil
+	case err != nil:
+		return err
+	case !matched:
+		slog.WarnContext(ctx, "payment recorded but matched no user", "payment", event.PaymentID, "session", event.CheckoutSessionID)
+	default:
+		slog.InfoContext(ctx, "payment recorded, user active", "payment", event.PaymentID, "session", event.CheckoutSessionID)
 	}
-	if err == nil {
-		slog.InfoContext(c.Request.Context(), "licence issued", "payment", event.PaymentID, "session", event.CheckoutSessionID, "hasInstall", installID != "")
-	}
-	return err
+	return nil
 }

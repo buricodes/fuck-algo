@@ -35,6 +35,8 @@ type Payments interface {
 type Deps struct {
 	Config   *config.Config
 	Store    store.Store
+	Auth     Verifier
+	Users    Directory
 	STT      STT
 	Checks   *checks.Service
 	Voice    *voice.Service
@@ -53,38 +55,37 @@ func (h *handler) trialLimit(c store.Counter) int {
 	return h.Config.Trial.Checks
 }
 
-func (h *handler) licenceOf(in store.Install) domain.Licence {
+func (h *handler) licenceOf(u store.User) domain.Licence {
 	l := domain.Licence{
 		Status: domain.LicenceTrial,
 		Trial: domain.Trial{
-			VoiceLeft:  max(0, h.Config.Trial.Voice-in.VoiceUsed),
-			ChecksLeft: max(0, h.Config.Trial.Checks-in.ChecksUsed),
+			VoiceLeft:  max(0, h.Config.Trial.Voice-u.VoiceUsed),
+			ChecksLeft: max(0, h.Config.Trial.Checks-u.ChecksUsed),
 		},
 	}
-	if in.LicenceActive {
+	if u.Active() {
 		l.Status = domain.LicenceActive
-		l.KeyHint = in.KeyHint
 	}
 	return l
 }
 
-func (h *handler) spend(ctx context.Context, in store.Install, c store.Counter, n int) (int, error) {
-	if in.LicenceActive || n == 0 {
+func (h *handler) spend(ctx context.Context, u store.User, c store.Counter, n int) (int, error) {
+	if u.Active() || n == 0 {
 		return n, nil
 	}
-	granted, err := h.Store.SpendTrial(ctx, in.ID, c, n, h.trialLimit(c))
+	granted, err := h.Store.SpendTrial(ctx, u.ID, c, n, h.trialLimit(c))
 	if errors.Is(err, store.ErrTrialSpent) {
 		return 0, apperr.New(apperr.TrialExhausted, trialMessage(c))
 	}
 	return granted, err
 }
 
-func (h *handler) refund(ctx context.Context, in store.Install, c store.Counter, n int) {
-	if in.LicenceActive || n <= 0 {
+func (h *handler) refund(ctx context.Context, u store.User, c store.Counter, n int) {
+	if u.Active() || n <= 0 {
 		return
 	}
-	if err := h.Store.RefundTrial(context.WithoutCancel(ctx), in.ID, c, n); err != nil {
-		slog.ErrorContext(ctx, "refunding trial failed", "install", in.ID, "error", err)
+	if err := h.Store.RefundTrial(context.WithoutCancel(ctx), u.ID, c, n); err != nil {
+		slog.ErrorContext(ctx, "refunding trial failed", "user", u.ID, "error", err)
 	}
 }
 

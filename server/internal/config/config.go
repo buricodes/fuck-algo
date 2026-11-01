@@ -6,7 +6,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -17,7 +16,6 @@ type Config struct {
 	Server      Server      `yaml:"server"`
 	WebsiteURL  string      `yaml:"website_url"`
 	Trial       Trial       `yaml:"trial"`
-	Licence     Licence     `yaml:"licence"`
 	Limits      Limits      `yaml:"limits"`
 	DB          DB          `yaml:"db"`
 	AI          AI          `yaml:"ai"`
@@ -31,7 +29,8 @@ type Config struct {
 	Env     string  `yaml:"-"`
 	Secrets Secrets `yaml:"-"`
 
-	ExtensionOrigins []string `yaml:"-"`
+	ExtensionOrigins       []string `yaml:"-"`
+	ClerkAuthorizedParties []string `yaml:"-"`
 }
 
 type Server struct {
@@ -43,13 +42,6 @@ type Trial struct {
 	Voice  int `yaml:"voice"`
 	Checks int `yaml:"checks"`
 }
-
-type Licence struct {
-	MaxInstalls int `yaml:"max_installs"`
-	RevealHours int `yaml:"reveal_hours"`
-}
-
-func (l Licence) RevealWindow() time.Duration { return time.Duration(l.RevealHours) * time.Hour }
 
 type Limits struct {
 	BodyBytes           int64 `yaml:"body_bytes"`
@@ -110,7 +102,6 @@ type ChecksCache struct {
 }
 
 type RateLimits struct {
-	Installs        Rate `yaml:"installs"`
 	Checkout        Rate `yaml:"checkout"`
 	VoiceToken      Rate `yaml:"voice_token"`
 	VoiceTranscribe Rate `yaml:"voice_transcribe"`
@@ -131,6 +122,7 @@ type Secrets struct {
 	DodoAPIKey        string
 	DodoWebhookSecret string
 	DodoProductID     string
+	ClerkSecretKey    string
 }
 
 func (c *Config) IsDevelopment() bool { return c.Env == EnvDevelopment }
@@ -161,6 +153,7 @@ func (c *Config) applyEnv() error {
 	}
 	c.WebsiteURL = strings.TrimRight(envOr("WEBSITE_URL", c.WebsiteURL), "/")
 	c.ExtensionOrigins = splitList(os.Getenv("EXTENSION_ORIGINS"))
+	c.ClerkAuthorizedParties = splitList(os.Getenv("CLERK_AUTHORIZED_PARTIES"))
 	c.AI.Checks = envOr("AI_CHECKS", c.AI.Checks)
 	c.AI.Rules = envOr("AI_RULES", c.AI.Rules)
 	c.Secrets = Secrets{
@@ -171,6 +164,7 @@ func (c *Config) applyEnv() error {
 		DodoAPIKey:        os.Getenv("DODO_PAYMENTS_API_KEY"),
 		DodoWebhookSecret: os.Getenv("DODO_PAYMENTS_WEBHOOK_SECRET"),
 		DodoProductID:     os.Getenv("DODO_PRODUCT_ID"),
+		ClerkSecretKey:    os.Getenv("CLERK_SECRET_KEY"),
 	}
 	return nil
 }
@@ -180,9 +174,6 @@ func (c *Config) validate() error {
 	if c.Trial.Voice < 0 || c.Trial.Checks < 0 {
 		errs = append(errs, errors.New("trial limits must not be negative"))
 	}
-	if c.Licence.MaxInstalls < 1 {
-		errs = append(errs, errors.New("licence.max_installs must be at least 1"))
-	}
 	if c.Limits.BodyBytes <= 0 || c.Limits.TranscribeBodyBytes < c.Limits.AudioBytes {
 		errs = append(errs, errors.New("limits: body sizes must be positive and the transcribe body must fit the audio"))
 	}
@@ -191,6 +182,12 @@ func (c *Config) validate() error {
 	}
 	if !c.IsDevelopment() && c.Secrets.DatabaseURL == "" {
 		errs = append(errs, errors.New("DATABASE_URL is required outside development"))
+	}
+	if !c.IsDevelopment() && c.Secrets.ClerkSecretKey == "" {
+		errs = append(errs, errors.New("CLERK_SECRET_KEY is required outside development"))
+	}
+	if !c.IsDevelopment() && len(c.ClerkAuthorizedParties) == 0 {
+		errs = append(errs, errors.New("CLERK_AUTHORIZED_PARTIES must list the allowed origins outside development"))
 	}
 	if !oneOf(c.AI.Checks, ProviderJev, ProviderAnthropic, ProviderCLI) {
 		errs = append(errs, errors.New("ai.checks must be jev, anthropic or cli"))

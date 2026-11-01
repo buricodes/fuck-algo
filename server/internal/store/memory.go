@@ -8,10 +8,9 @@ import (
 
 type Memory struct {
 	mu        sync.Mutex
-	installs  map[string]*Install
-	byToken   map[string]string
-	licences  map[string]*Licence
-	byKey     map[string]string
+	nextID    int64
+	users     map[int64]*User
+	byClerkID map[string]int64
 	payments  map[string]bool
 	checkouts map[string]*CheckoutSession
 	webhooks  map[string]bool
@@ -21,10 +20,8 @@ var _ Store = (*Memory)(nil)
 
 func NewMemory() *Memory {
 	return &Memory{
-		installs:  map[string]*Install{},
-		byToken:   map[string]string{},
-		licences:  map[string]*Licence{},
-		byKey:     map[string]string{},
+		users:     map[int64]*User{},
+		byClerkID: map[string]int64{},
 		payments:  map[string]bool{},
 		checkouts: map[string]*CheckoutSession{},
 		webhooks:  map[string]bool{},
@@ -34,48 +31,57 @@ func NewMemory() *Memory {
 func (m *Memory) Ping(context.Context) error { return nil }
 func (m *Memory) Close()                     {}
 
-func (m *Memory) CreateInstall(_ context.Context, in Install) error {
+func (m *Memory) UserByClerkID(_ context.Context, clerkID string) (User, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.installs[in.ID] = &in
-	m.byToken[in.TokenHash] = in.ID
-	return nil
-}
-
-func (m *Memory) InstallByTokenHash(_ context.Context, tokenHash string) (Install, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	id, ok := m.byToken[tokenHash]
+	id, ok := m.byClerkID[clerkID]
 	if !ok {
-		return Install{}, ErrNotFound
+		return User{}, ErrNotFound
 	}
-	return m.joined(m.installs[id]), nil
+	return *m.users[id], nil
 }
 
-func (m *Memory) InstallExists(_ context.Context, id string) (bool, error) {
+func (m *Memory) CreateUser(_ context.Context, u User) (User, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	_, ok := m.installs[id]
-	return ok, nil
+	if id, ok := m.byClerkID[u.ClerkID]; ok {
+		return *m.users[id], nil
+	}
+	m.nextID++
+	u.ID = m.nextID
+	m.users[u.ID] = &u
+	m.byClerkID[u.ClerkID] = u.ID
+	return u, nil
 }
 
-func (m *Memory) TouchInstall(_ context.Context, id string, at time.Time) error {
+func (m *Memory) SetUserEmail(_ context.Context, userID int64, email string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if in, ok := m.installs[id]; ok {
-		in.LastSeenAt = at
+	u, ok := m.users[userID]
+	if !ok {
+		return ErrNotFound
+	}
+	u.Email = email
+	return nil
+}
+
+func (m *Memory) TouchUser(_ context.Context, userID int64, at time.Time) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if u, ok := m.users[userID]; ok {
+		u.LastSeenAt = at
 	}
 	return nil
 }
 
-func (m *Memory) SpendTrial(_ context.Context, installID string, c Counter, n, limit int) (int, error) {
+func (m *Memory) SpendTrial(_ context.Context, userID int64, c Counter, n, limit int) (int, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	in, ok := m.installs[installID]
+	u, ok := m.users[userID]
 	if !ok {
 		return 0, ErrNotFound
 	}
-	counter := counterOf(in, c)
+	counter := counterOf(u, c)
 	if *counter >= limit {
 		return 0, ErrTrialSpent
 	}
@@ -84,35 +90,22 @@ func (m *Memory) SpendTrial(_ context.Context, installID string, c Counter, n, l
 	return granted, nil
 }
 
-func (m *Memory) RefundTrial(_ context.Context, installID string, c Counter, n int) error {
+func (m *Memory) RefundTrial(_ context.Context, userID int64, c Counter, n int) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if in, ok := m.installs[installID]; ok {
-		counter := counterOf(in, c)
+	if u, ok := m.users[userID]; ok {
+		counter := counterOf(u, c)
 		*counter = max(0, *counter-n)
 	}
 	return nil
 }
 
-func (m *Memory) LicenceByKeyHash(_ context.Context, keyHash string) (Licence, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	id, ok := m.byKey[keyHash]
-	if !ok {
-		return Licence{}, ErrNotFound
-	}
-	return *m.licences[id], nil
-}
-
-func (m *Memory) AttachLicence(_ context.Context, installID, licenceID string, maxInstalls int) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.attach(installID, licenceID, maxInstalls)
-}
-
 func (m *Memory) CreateCheckoutSession(_ context.Context, s CheckoutSession) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if _, ok := m.users[s.UserID]; !ok {
+		return ErrNotFound
+	}
 	m.checkouts[s.ID] = &s
 	return nil
 }
@@ -138,77 +131,45 @@ func (m *Memory) CheckoutSession(_ context.Context, id string) (CheckoutSession,
 	return *s, nil
 }
 
-func (m *Memory) ClearRevealKeys(_ context.Context, createdBefore time.Time) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	for _, s := range m.checkouts {
-		if s.CreatedAt.Before(createdBefore) {
-			s.RevealKey = nil
-		}
-	}
-	return nil
-}
-
-func (m *Memory) RecordPayment(_ context.Context, p Payment) error {
+func (m *Memory) RecordPayment(_ context.Context, p Payment) (bool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.webhooks[p.WebhookID] {
-		return ErrDuplicate
+		return false, ErrDuplicate
 	}
 	m.webhooks[p.WebhookID] = true
 	if m.payments[p.ProviderPaymentID] {
-		return nil
+		return true, nil
 	}
 	m.payments[p.ProviderPaymentID] = true
-	m.licences[p.LicenceID] = &Licence{ID: p.LicenceID, KeyHash: p.KeyHash, KeyHint: p.KeyHint, Status: LicenceStatusActive, CreatedAt: p.At}
-	m.byKey[p.KeyHash] = p.LicenceID
+	u := m.payer(p)
 	if s, ok := m.checkouts[p.CheckoutSessionID]; ok {
-		at, licenceID, key := p.At, p.LicenceID, p.RevealKey
-		s.Status, s.LicenceID, s.RevealKey, s.PaidAt = CheckoutPaid, &licenceID, &key, &at
+		at := p.At
+		s.Status, s.PaidAt = CheckoutPaid, &at
 	}
-	if _, ok := m.installs[p.InstallID]; ok {
-		return m.attach(p.InstallID, p.LicenceID, p.MaxInstalls)
+	if u == nil {
+		return false, nil
+	}
+	if u.LicensedAt == nil {
+		at := p.At
+		u.LicensedAt = &at
+	}
+	return true, nil
+}
+
+func (m *Memory) payer(p Payment) *User {
+	if s, ok := m.checkouts[p.CheckoutSessionID]; ok {
+		return m.users[s.UserID]
+	}
+	if id, ok := m.byClerkID[p.ClerkID]; ok && p.ClerkID != "" {
+		return m.users[id]
 	}
 	return nil
 }
 
-func (m *Memory) attach(installID, licenceID string, maxInstalls int) error {
-	in, ok := m.installs[installID]
-	if !ok {
-		return ErrNotFound
-	}
-	if in.LicenceID != nil && *in.LicenceID == licenceID {
-		return nil
-	}
-	taken := 0
-	for _, other := range m.installs {
-		if other.LicenceID != nil && *other.LicenceID == licenceID {
-			taken++
-		}
-	}
-	if taken >= maxInstalls {
-		return ErrLicenceFull
-	}
-	in.LicenceID = &licenceID
-	return nil
-}
-
-func (m *Memory) joined(in *Install) Install {
-	out := *in
-	if in.LicenceID == nil {
-		return out
-	}
-	if l, ok := m.licences[*in.LicenceID]; ok {
-		hint := l.KeyHint
-		out.KeyHint = &hint
-		out.LicenceActive = l.Status == LicenceStatusActive
-	}
-	return out
-}
-
-func counterOf(in *Install, c Counter) *int {
+func counterOf(u *User, c Counter) *int {
 	if c == CounterVoice {
-		return &in.VoiceUsed
+		return &u.VoiceUsed
 	}
-	return &in.ChecksUsed
+	return &u.ChecksUsed
 }

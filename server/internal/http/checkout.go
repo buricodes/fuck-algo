@@ -1,13 +1,14 @@
 package httpapi
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"errors"
-	"net/mail"
+	"fmt"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/buricodes/fuck-algo/server/internal/service/licence"
 	"github.com/buricodes/fuck-algo/server/internal/service/payments"
 	"github.com/buricodes/fuck-algo/server/internal/store"
 	"github.com/buricodes/fuck-algo/server/pkg/apperr"
@@ -15,15 +16,10 @@ import (
 )
 
 const (
-	maxEmailChars     = 254
 	maxSessionIDChars = 64
 	sessionPrefix     = "cks_"
+	sessionIDBytes    = 18
 )
-
-type checkoutRequest struct {
-	InstallID *string `json:"installId"`
-	Email     string  `json:"email"`
-}
 
 type checkoutResponse struct {
 	SessionID   string `json:"sessionId"`
@@ -31,8 +27,7 @@ type checkoutResponse struct {
 }
 
 type checkoutStatusResponse struct {
-	Status     string  `json:"status"`
-	LicenceKey *string `json:"licenceKey"`
+	Status string `json:"status"`
 }
 
 func (h *handler) createCheckout(c *gin.Context) {
@@ -40,12 +35,7 @@ func (h *handler) createCheckout(c *gin.Context) {
 		response.Fail(c, unavailable("Checkout"))
 		return
 	}
-	var req checkoutRequest
-	if err := bindJSON(c, &req); err != nil {
-		response.Fail(c, err)
-		return
-	}
-	res, err := h.startCheckout(c, req)
+	res, err := h.startCheckout(c)
 	if err != nil {
 		response.Fail(c, err)
 		return
@@ -53,24 +43,23 @@ func (h *handler) createCheckout(c *gin.Context) {
 	response.OK(c, res)
 }
 
-func (h *handler) startCheckout(c *gin.Context, req checkoutRequest) (checkoutResponse, error) {
-	ctx := c.Request.Context()
-	email, err := checkoutEmail(req.Email)
+func (h *handler) startCheckout(c *gin.Context) (checkoutResponse, error) {
+	ctx, u := c.Request.Context(), currentUser(c)
+	if u.Active() {
+		return checkoutResponse{}, badRequest("You already have the full version.")
+	}
+	if err := h.ensureEmail(ctx, &u); err != nil {
+		return checkoutResponse{}, err
+	}
+	id, err := newSessionID()
 	if err != nil {
 		return checkoutResponse{}, err
 	}
-	if err := h.checkInstall(c, req.InstallID); err != nil {
-		return checkoutResponse{}, err
-	}
-	id, err := licence.NewCheckoutSessionID()
-	if err != nil {
-		return checkoutResponse{}, err
-	}
-	session := store.CheckoutSession{ID: id, InstallID: req.InstallID, Status: store.CheckoutPending, CreatedAt: h.Now()}
+	session := store.CheckoutSession{ID: id, UserID: u.ID, Status: store.CheckoutPending, CreatedAt: h.Now()}
 	if err := h.Store.CreateCheckoutSession(ctx, session); err != nil {
 		return checkoutResponse{}, err
 	}
-	co, err := h.Payments.CreateCheckout(ctx, payments.CheckoutRequest{SessionID: id, InstallID: deref(req.InstallID), Email: email})
+	co, err := h.Payments.CreateCheckout(ctx, payments.CheckoutRequest{SessionID: id, UserID: u.ClerkID, Email: u.Email})
 	if err != nil {
 		return checkoutResponse{}, err
 	}
@@ -80,32 +69,6 @@ func (h *handler) startCheckout(c *gin.Context, req checkoutRequest) (checkoutRe
 	return checkoutResponse{SessionID: id, CheckoutURL: co.URL}, nil
 }
 
-func (h *handler) checkInstall(c *gin.Context, installID *string) error {
-	if installID == nil {
-		return nil
-	}
-	if !licence.IsUUID(*installID) {
-		return badRequest("installId must be a UUID or null.")
-	}
-	exists, err := h.Store.InstallExists(c.Request.Context(), *installID)
-	if err == nil && !exists {
-		return apperr.New(apperr.NotFound, "That install is not recognised.")
-	}
-	return err
-}
-
-func checkoutEmail(raw string) (string, error) {
-	email := strings.TrimSpace(raw)
-	if email == "" {
-		return "", nil
-	}
-	addr, err := mail.ParseAddress(email)
-	if err != nil || addr.Address != email || len(email) > maxEmailChars {
-		return "", badRequest("That email address does not look right.")
-	}
-	return email, nil
-}
-
 func (h *handler) checkoutStatus(c *gin.Context) {
 	id := c.Param("sessionId")
 	if !strings.HasPrefix(id, sessionPrefix) || len(id) > maxSessionIDChars {
@@ -113,27 +76,24 @@ func (h *handler) checkoutStatus(c *gin.Context) {
 		return
 	}
 	s, err := h.Store.CheckoutSession(c.Request.Context(), id)
-	if errors.Is(err, store.ErrNotFound) {
+	if errors.Is(err, store.ErrNotFound) || (err == nil && s.UserID != currentUser(c).ID) {
 		err = checkoutNotFound()
 	}
 	if err != nil {
 		response.Fail(c, err)
 		return
 	}
-	res := checkoutStatusResponse{Status: s.Status}
-	if s.Status == store.CheckoutPaid && h.Now().Sub(s.CreatedAt) < h.Config.Licence.RevealWindow() {
-		res.LicenceKey = s.RevealKey
+	response.OK(c, checkoutStatusResponse{Status: s.Status})
+}
+
+func newSessionID() (string, error) {
+	raw := make([]byte, sessionIDBytes)
+	if _, err := rand.Read(raw); err != nil {
+		return "", fmt.Errorf("reading randomness: %w", err)
 	}
-	response.OK(c, res)
+	return sessionPrefix + base64.RawURLEncoding.EncodeToString(raw), nil
 }
 
 func checkoutNotFound() error {
 	return apperr.New(apperr.NotFound, "That checkout does not exist.")
-}
-
-func deref(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
 }

@@ -1,5 +1,5 @@
 import { emptyFeed, emptyStats, withDefaults } from './defaults'
-import type { ActivityEntry, FeedMemory, Install, Licence, Settings, Stats } from './types'
+import type { Account, ActivityEntry, FeedMemory, Settings, Stats } from './types'
 
 export type Store = {
   settings: Settings
@@ -7,8 +7,7 @@ export type Store = {
   activity: ActivityEntry[]
   feed: FeedMemory
   allow: string[]
-  install: Install | null
-  licence: Licence | null
+  account: Account | null
 }
 
 type Key = keyof Store
@@ -19,8 +18,7 @@ const fallback: { [K in Key]: () => Store[K] } = {
   activity: () => [],
   feed: emptyFeed,
   allow: () => [],
-  install: () => null,
-  licence: () => null,
+  account: () => null,
 }
 
 export async function read<K extends Key>(key: K): Promise<Store[K]> {

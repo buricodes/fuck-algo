@@ -1,11 +1,11 @@
-import type { ActivityEntry, CheckResult, ItemInfo, Licence, ProposedRule, Result } from './types'
+import type { Account, ActivityEntry, CheckResult, ItemInfo, ProposedRule, Result } from './types'
 
 export type Requests = {
   'checks:run': { req: { items: ItemInfo[] }; res: Result<CheckResult[]> }
   'activity:record': { req: { entry: Omit<ActivityEntry, 'id' | 'at' | 'undone'> }; res: null }
   'feed:seen': { req: { key: string; topic: string }; res: null }
-  'licence:refresh': { req: Record<string, never>; res: Result<Licence> }
-  'licence:activate': { req: { key: string }; res: Result<Licence> }
+  'account:refresh': { req: Record<string, never>; res: Result<Account | null> }
+  'account:signin': { req: Record<string, never>; res: null }
   'checkout:open': { req: Record<string, never>; res: Result<null> }
   'voice:start': { req: Record<string, never>; res: Result<null> }
   'voice:stop': { req: Record<string, never>; res: null }

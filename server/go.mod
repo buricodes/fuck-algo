@@ -3,8 +3,10 @@ module github.com/buricodes/fuck-algo/server
 go 1.26
 
 require (
+	github.com/clerk/clerk-sdk-go/v2 v2.7.0
 	github.com/dodopayments/dodopayments-go v1.114.0
 	github.com/gin-gonic/gin v1.12.0
+	github.com/go-jose/go-jose/v3 v3.0.4
 	github.com/jackc/pgx/v5 v5.10.0
 	gopkg.in/yaml.v3 v3.0.1
 )

@@ -22,7 +22,7 @@ func TestParseWebhook(t *testing.T) {
 	paid := `{"business_id":"bus_1","type":"payment.succeeded","timestamp":"2026-11-01T10:00:00Z","data":{
 		"payload_type":"Payment","payment_id":"pay_1","total_amount":500,"currency":"USD",
 		"customer":{"customer_id":"cus_1","email":"a@example.com","name":"A"},
-		"metadata":{"install_id":"6f1c2b8e-3d4a-4f5b-9c6d-7e8f9a0b1c2d","session_id":"cks_abc","other":3}}}`
+		"metadata":{"user_id":"user_2abc","session_id":"cks_abc","other":3}}}`
 
 	tests := []struct {
 		name    string
@@ -33,7 +33,7 @@ func TestParseWebhook(t *testing.T) {
 	}{
 		{"payment succeeded", paid, sign(paid), &PaymentEvent{
 			WebhookID: "msg_1", EventType: EventPaymentSucceeded, PaymentID: "pay_1", CheckoutSessionID: "cks_abc",
-			InstallID: "6f1c2b8e-3d4a-4f5b-9c6d-7e8f9a0b1c2d", Email: "a@example.com", Amount: 500, Currency: "USD",
+			UserID: "user_2abc", Email: "a@example.com", Amount: 500, Currency: "USD",
 		}, nil},
 		{"other event ignored", `{"type":"payment.failed","data":{}}`, sign(`{"type":"payment.failed","data":{}}`), nil, nil},
 		{"forged", paid, WebhookHeaders{ID: "msg_1", Timestamp: ts, Signature: "v1,Zm9yZ2Vk"}, nil, ErrInvalidSignature},

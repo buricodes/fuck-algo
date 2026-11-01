@@ -4,7 +4,7 @@ import { read } from '@/shared/storage'
 import type { ProposedRule, Result } from '@/shared/types'
 
 import { call } from './api'
-import { spend } from './licence'
+import { spend } from './account'
 
 const OFFSCREEN_URL = 'src/offscreen/index.html'
 let creating: Promise<void> | null = null

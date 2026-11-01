@@ -2,10 +2,9 @@ import { handle } from '@/shared/messages'
 import { read, update, watch, write } from '@/shared/storage'
 import { dayKey } from '@/shared/util'
 
-import { ensureInstall } from './api'
 import { runChecks } from './checks'
 import { recordBlock, recordSeen } from './ledger'
-import { activateLicence, openCheckout, refreshLicence } from './licence'
+import { openCheckout, openSignIn, refreshAccount } from './account'
 import { cancelVoice, rulesFor, startVoice, stopVoice, transcribe } from './voice'
 
 handle({
@@ -18,8 +17,8 @@ handle({
     await recordSeen(key, topic)
     return null
   },
-  'licence:refresh': () => refreshLicence(),
-  'licence:activate': ({ key }) => activateLicence(key),
+  'account:refresh': () => refreshAccount(),
+  'account:signin': () => openSignIn(),
   'checkout:open': () => openCheckout(),
   'voice:start': () => startVoice(),
   'voice:stop': () => stopVoice(),
@@ -33,7 +32,7 @@ async function onInstalled({ reason }: chrome.runtime.InstalledDetails) {
   if (reason === chrome.runtime.OnInstalledReason.INSTALL) {
     await chrome.runtime.openOptionsPage()
   }
-  if (await ensureInstall()) await refreshLicence()
+  await refreshAccount()
 }
 
 chrome.runtime.onInstalled.addListener((details) => {
@@ -41,7 +40,7 @@ chrome.runtime.onInstalled.addListener((details) => {
 })
 
 chrome.runtime.onStartup.addListener(() => {
-  void refreshLicence()
+  void refreshAccount()
 })
 
 async function paintBadge() {

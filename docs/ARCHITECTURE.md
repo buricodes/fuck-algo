@@ -5,7 +5,7 @@
 * Filter feeds on YouTube, X, Instagram and other sites before the person sees what they did not want.
 * Decide most things on the device, instantly and for free. Use AI only where words alone cannot decide.
 * Let people set rules by talking, then confirm them.
-* No accounts. One $5 licence key works on up to five browsers.
+* Sign in once on the website (Clerk). The extension shares the session; $5 once unlocks the account everywhere.
 
 ## Non goals (version 1)
 
@@ -17,13 +17,13 @@
 
 ```
  ┌──────────────── Chrome ────────────────┐            ┌──────── server (Go) ────────┐
- │ content script  (every http/https tab)  │            │  /v1/installs  /v1/me        │
+ │ content script  (every http/https tab)  │            │  /v1/me                      │
  │   site adapter → engine → overlay       │            │  /v1/checks   → Jev          │
  │        │ checks, activity, seen          │   HTTPS    │  /v1/voice/*  → ElevenLabs,  │
  │        ▼                                 │ ─────────▶ │                 Claude Haiku │
  │ background service worker               │  Bearer    │  /v1/checkout → Dodo         │
- │   api client · checks batcher · ledger  │  install   │  /v1/webhooks/dodo           │
- │        ▲ voice events                    │  token     │        │                     │
+ │   api client · checks batcher · ledger  │  Clerk     │  /v1/webhooks/dodo           │
+ │        ▲ voice events                    │  session   │        │                     │
  │ offscreen document (microphone)          │            │        ▼                     │
  │ popup · settings page (React)            │            │  Postgres on Neon            │
  └─────────────────────────────────────────┘            └──────────────────────────────┘
@@ -37,7 +37,7 @@
 | `engine/` | Pure rule logic: text matching, local verdicts, repeat limits, folding voice rules into settings. Unit tested. |
 | `content/` | Runs on every page. A site adapter finds feed items, the engine decides, the overlay blurs, hides or skips. |
 | `content/sites/` | One adapter per site: `youtube` (tiles and the Shorts player), `x`, `instagram` (posts and Reels), `web` (Reddit and generic articles). |
-| `background/` | Service worker. Owns the install token, calls the API, batches AI checks with a cache, and is the single writer of activity, stats and feed memory. |
+| `background/` | Service worker. Holds the Clerk client (synced from the website), calls the API, batches AI checks with a cache, and is the single writer of activity, stats and feed memory. |
 | `offscreen/` | Holds the microphone, streams audio to ElevenLabs realtime, falls back to upload and transcribe. |
 | `popup/` | Toolbar popup (360 × 560). |
 | `options/` | Full settings page: watchlist, repeat blocker, keyword blocks, activity, licence. |
@@ -71,7 +71,7 @@ Spoilers always blur. Repeats always skip. Keywords use their own action.
 | `activity` | Last 300 blocked items, with undo state | background (undo from settings) |
 | `feed` | Last 20 seen items with topic, topic counts per day for 7 days | background |
 | `allow` | Item keys shown anyway, last 500 | content and settings |
-| `install`, `licence` | Install id and token, licence status and trial counters | background |
+| `account` | Signed in user's email, licence status and trial counters (null when signed out) | background |
 | `checkCache` | AI check results by item key, last 3,000 | background |
 
 ### Voice
@@ -86,9 +86,9 @@ Spoilers always blur. Repeats always skip. Keywords use their own action.
 
 Go 1.26 with Gin, pgx v5 and slog. See `server/README.md` for the layout.
 
-* `installs`: one row per browser, holding a SHA-256 of its token, trial counters and an optional licence.
-* `licences`: one row per paid key, holding only a SHA-256 of the key and its last four characters.
-* `checkout_sessions`: links a Dodo checkout to an install and holds the key for 24 hours so the thanks page can show it.
+* Every `/v1` route except the webhook verifies a Clerk session token (JWKS, expiry, `azp` against the website and extension origins).
+* `users`: one row per Clerk user, created on first request, holding the email, trial counters and when they paid.
+* `checkout_sessions` and `payments`: link a Dodo checkout and its payment to the user.
 * `webhook_events`: idempotency for Dodo webhooks.
 * AI check results are cached in memory for 24 hours, keyed by item and Paranoid watchlist.
 * Migrations are embedded and applied on start.
@@ -101,4 +101,4 @@ Vite and React, static, on Vercel. It calls only `/v1/checkout` and `/v1/checkou
 
 * Content script: under 2 ms per scan on a typical YouTube home page, scans debounced to 250 ms.
 * AI checks: batched up to 25 items, flushed after 350 ms, cached locally and on the server.
-* Extension bundle: under 500 kB of JavaScript, fonts bundled.
+* Extension bundle: the service worker is about 870 kB because it carries the Clerk client (the same as Bui); everything else stays under 300 kB.

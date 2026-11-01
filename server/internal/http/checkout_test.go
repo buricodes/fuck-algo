@@ -1,78 +1,102 @@
 package httpapi_test
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"testing"
-	"time"
 )
 
-type statusData struct {
-	Status     string  `json:"status"`
-	LicenceKey *string `json:"licenceKey"`
-}
-
-func (e *testEnv) checkoutStatus(id string) (statusData, reply) {
+func (e *testEnv) checkoutStatus(token, id string) (string, reply) {
 	e.t.Helper()
-	var data statusData
-	r := e.do(http.MethodGet, "/v1/checkout/"+id, "", nil)
+	var data struct {
+		Status string `json:"status"`
+	}
+	r := e.do(http.MethodGet, "/v1/checkout/"+id, token, nil)
 	if r.status == http.StatusOK {
 		r.into(e.t, &data)
 	}
-	return data, r
+	return data.Status, r
 }
 
 func TestCheckoutFlow(t *testing.T) {
 	e := newEnv(t)
-	in := e.install()
-	session := e.startCheckout(&in.InstallID)
-	if !strings.HasPrefix(session, "cks_") || e.payments.requests[0].InstallID != in.InstallID || e.payments.requests[0].SessionID != session {
-		t.Fatalf("checkout did not carry the install and session: %+v", e.payments.requests)
+	u := e.signIn("user_a")
+	session := e.startCheckout(u.Token)
+	req := e.payments.requests[0]
+	if !strings.HasPrefix(session, "cks_") || req.UserID != "user_a" || req.SessionID != session || req.Email != "user_a@example.com" {
+		t.Fatalf("checkout did not carry the user, email and session: %+v", e.payments.requests)
 	}
-	if s, _ := e.checkoutStatus(session); s.Status != "pending" || s.LicenceKey != nil {
-		t.Fatalf("status before payment = %+v", s)
-	}
-
-	key := e.buyLicence(in.InstallID, session)
-	s, _ := e.checkoutStatus(session)
-	if s.Status != "paid" || s.LicenceKey == nil || *s.LicenceKey != key {
-		t.Fatalf("status after payment = %+v", s)
-	}
-	me := e.me(in.Token)
-	if me.Licence.Status != "active" || me.Licence.KeyHint == nil || *me.Licence.KeyHint != key[len(key)-4:] {
-		t.Fatalf("install was not activated: %+v", me.Licence)
+	if s, _ := e.checkoutStatus(u.Token, session); s != "pending" {
+		t.Fatalf("status before payment = %q", s)
 	}
 
+	e.pay("user_a", session)
+	if s, _ := e.checkoutStatus(u.Token, session); s != "paid" {
+		t.Fatalf("status after payment = %q", s)
+	}
+	if me := e.me(u.Token); me.Licence.Status != "active" {
+		t.Fatalf("user was not activated: %+v", me.Licence)
+	}
 	for range 4 {
-		if r := e.do(http.MethodPost, "/v1/voice/token", in.Token, nil); r.status != http.StatusOK {
-			t.Fatalf("licensed install was limited: %d %s", r.status, r.code())
+		if r := e.do(http.MethodPost, "/v1/voice/token", u.Token, nil); r.status != http.StatusOK {
+			t.Fatalf("active user was limited: %d %s", r.status, r.code())
 		}
 	}
+	if r := e.do(http.MethodPost, "/v1/checkout", u.Token, map[string]any{}); r.status != http.StatusBadRequest || r.code() != "bad_request" {
+		t.Fatalf("checkout while active: got %d %s", r.status, r.code())
+	}
+}
 
-	e.now = e.now.Add(25 * time.Hour)
-	if s, _ := e.checkoutStatus(session); s.Status != "paid" || s.LicenceKey != nil {
-		t.Fatalf("key still shown after 24 hours: %+v", s)
+func TestCheckoutWithoutEmail(t *testing.T) {
+	e := newEnv(t)
+	u := e.signIn("user_a")
+	e.users.fail = true
+	e.startCheckout(u.Token)
+	if got := e.payments.requests[0].Email; got != "" {
+		t.Fatalf("email = %q, want none", got)
+	}
+}
+
+func TestCheckoutStatusBelongsToCaller(t *testing.T) {
+	e := newEnv(t)
+	owner, other := e.signIn("user_a"), e.signIn("user_b")
+	session := e.startCheckout(owner.Token)
+	for _, id := range []string{session, "cks_missing", "nope"} {
+		if _, r := e.checkoutStatus(other.Token, id); r.status != http.StatusNotFound || r.code() != "not_found" {
+			t.Fatalf("%s: got %d %s", id, r.status, r.code())
+		}
 	}
 }
 
 func TestWebhookIdempotentAndVerified(t *testing.T) {
 	e := newEnv(t)
-	session := e.startCheckout(nil)
-	key := e.buyLicence("", session)
+	u := e.signIn("user_a")
+	session := e.startCheckout(u.Token)
+	e.pay("user_a", session)
 	if r := e.webhook("msg_" + session); r.status != http.StatusOK {
 		t.Fatalf("duplicate webhook: %d %s", r.status, r.code())
-	}
-	if s, _ := e.checkoutStatus(session); s.LicenceKey == nil || *s.LicenceKey != key {
-		t.Fatalf("duplicate webhook changed the key")
 	}
 	e.payments.event.CheckoutSessionID = "cks_other"
 	if r := e.webhook("msg_retry_same_payment"); r.status != http.StatusOK {
 		t.Fatalf("same payment, new webhook id: %d %s", r.status, r.code())
 	}
-
-	req := e.webhookRequest("msg_bad", "v1,forged")
-	if r := e.send(req); r.status != http.StatusUnauthorized || r.code() != "unauthorised" {
+	if r := e.send(e.webhookRequest("msg_bad", "v1,forged")); r.status != http.StatusUnauthorized || r.code() != "unauthorised" {
 		t.Fatalf("forged webhook: %d %s", r.status, r.code())
+	}
+}
+
+func TestWebhookActivatesByMetadata(t *testing.T) {
+	e := newEnv(t)
+	u := e.signIn("user_a")
+	e.me(u.Token)
+	e.pay("user_a", "cks_made_elsewhere")
+	if me := e.me(u.Token); me.Licence.Status != "active" {
+		t.Fatalf("user not activated from metadata: %+v", me.Licence)
+	}
+	e.pay("user_unknown", "cks_nobody")
+	if _, err := e.store.UserByClerkID(context.Background(), "user_unknown"); err == nil {
+		t.Fatal("a webhook must not create users")
 	}
 }
 
@@ -83,79 +107,13 @@ func TestWebhookIgnoresOtherEvents(t *testing.T) {
 	}
 }
 
-func TestCheckoutValidation(t *testing.T) {
-	tests := []struct {
-		name   string
-		body   map[string]any
-		status int
-		code   string
-	}{
-		{"bad install id", map[string]any{"installId": "nope"}, 400, "bad_request"},
-		{"unknown install", map[string]any{"installId": "6f1c2b8e-3d4a-4f5b-9c6d-7e8f9a0b1c2d"}, 404, "not_found"},
-		{"bad email", map[string]any{"installId": nil, "email": "not an email"}, 400, "bad_request"},
-		{"email with name", map[string]any{"email": "Aman <a@example.com>"}, 400, "bad_request"},
-		{"good email", map[string]any{"email": "a@example.com"}, 200, ""},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := newEnv(t).do(http.MethodPost, "/v1/checkout", "", tt.body)
-			if r.status != tt.status || r.code() != tt.code {
-				t.Fatalf("got %d %s, want %d %s", r.status, r.code(), tt.status, tt.code)
-			}
-		})
-	}
-}
-
-func TestCheckoutStatusNotFound(t *testing.T) {
-	e := newEnv(t)
-	for _, id := range []string{"cks_missing", "nope"} {
-		if _, r := e.checkoutStatus(id); r.status != http.StatusNotFound || r.code() != "not_found" {
-			t.Fatalf("%s: got %d %s", id, r.status, r.code())
-		}
-	}
-}
-
 func TestPaymentsUnavailable(t *testing.T) {
 	e := newEnv(t)
 	e.payments.available = false
-	if r := e.do(http.MethodPost, "/v1/checkout", "", map[string]any{}); r.status != 503 || r.code() != "unavailable" {
+	if r := e.do(http.MethodPost, "/v1/checkout", e.signIn("user_a").Token, map[string]any{}); r.status != 503 || r.code() != "unavailable" {
 		t.Fatalf("checkout: got %d %s", r.status, r.code())
 	}
 	if r := e.webhook("msg_1"); r.status != 503 || r.code() != "unavailable" {
 		t.Fatalf("webhook: got %d %s", r.status, r.code())
-	}
-}
-
-func TestLicenceActivate(t *testing.T) {
-	e := newEnv(t)
-	key := e.buyLicence("", e.startCheckout(nil))
-	typed := strings.ToLower(strings.ReplaceAll(key, "-", " "))
-
-	for i := range 6 {
-		in := e.install()
-		r := e.do(http.MethodPost, "/v1/licence/activate", in.Token, map[string]string{"key": typed})
-		if i < 5 {
-			if r.status != http.StatusOK {
-				t.Fatalf("install %d: got %d %s", i, r.status, r.code())
-			}
-			if again := e.do(http.MethodPost, "/v1/licence/activate", in.Token, map[string]string{"key": key}); again.status != http.StatusOK {
-				t.Fatalf("re-activating the same install should succeed, got %d %s", again.status, again.code())
-			}
-			continue
-		}
-		if r.status != http.StatusConflict || r.code() != "licence_full" {
-			t.Fatalf("sixth install: got %d %s", r.status, r.code())
-		}
-	}
-}
-
-func TestLicenceActivateInvalid(t *testing.T) {
-	e := newEnv(t)
-	in := e.install()
-	for _, key := range []string{"", "FA-AAAA-AAAA-AAAA-AAAA", "garbage", strings.Repeat("A", 100)} {
-		r := e.do(http.MethodPost, "/v1/licence/activate", in.Token, map[string]string{"key": key})
-		if r.status != http.StatusBadRequest || r.code() != "licence_invalid" {
-			t.Fatalf("key %q: got %d %s", key, r.status, r.code())
-		}
 	}
 }

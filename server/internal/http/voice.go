@@ -39,14 +39,14 @@ func (h *handler) voiceToken(c *gin.Context) {
 		response.Fail(c, unavailable("Voice"))
 		return
 	}
-	ctx, in := c.Request.Context(), install(c)
-	if _, err := h.spend(ctx, in, store.CounterVoice, 1); err != nil {
+	ctx, u := c.Request.Context(), currentUser(c)
+	if _, err := h.spend(ctx, u, store.CounterVoice, 1); err != nil {
 		response.Fail(c, err)
 		return
 	}
 	token, err := h.STT.RealtimeToken(ctx)
 	if err != nil {
-		h.refund(ctx, in, store.CounterVoice, 1)
+		h.refund(ctx, u, store.CounterVoice, 1)
 		response.Fail(c, err)
 		return
 	}

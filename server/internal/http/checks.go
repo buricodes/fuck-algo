@@ -39,13 +39,13 @@ func (h *handler) judge(c *gin.Context, plan *checks.Plan) error {
 	if len(plan.Pending) == 0 {
 		return nil
 	}
-	ctx, in := c.Request.Context(), install(c)
-	granted, err := h.spend(ctx, in, store.CounterChecks, len(plan.Pending))
+	ctx, u := c.Request.Context(), currentUser(c)
+	granted, err := h.spend(ctx, u, store.CounterChecks, len(plan.Pending))
 	if err != nil {
 		return err
 	}
 	judged, err := h.Checks.Judge(ctx, plan, plan.Pending[:granted])
-	h.refund(ctx, in, store.CounterChecks, granted-judged)
+	h.refund(ctx, u, store.CounterChecks, granted-judged)
 	return err
 }
 

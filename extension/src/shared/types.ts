@@ -54,13 +54,12 @@ export type FeedMemory = {
   topicsByDay: Record<string, Record<string, number>>
 }
 
-export type Install = { id: string; token: string }
-
 export type Licence = {
   status: 'trial' | 'active'
-  keyHint: string | null
   trial: { voiceLeft: number; checksLeft: number }
 }
+
+export type Account = { userId: string; email: string; licence: Licence }
 
 export type ItemInfo = {
   key: string
@@ -83,8 +82,6 @@ export type ApiErrorCode =
   | 'unauthorised'
   | 'not_found'
   | 'trial_exhausted'
-  | 'licence_invalid'
-  | 'licence_full'
   | 'rate_limited'
   | 'upstream'
   | 'unavailable'

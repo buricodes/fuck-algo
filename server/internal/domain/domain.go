@@ -8,9 +8,8 @@ const (
 )
 
 type Licence struct {
-	Status  string  `json:"status"`
-	KeyHint *string `json:"keyHint"`
-	Trial   Trial   `json:"trial"`
+	Status string `json:"status"`
+	Trial  Trial  `json:"trial"`
 }
 
 type Trial struct {

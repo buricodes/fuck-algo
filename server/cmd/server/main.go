@@ -18,6 +18,7 @@ import (
 	"github.com/buricodes/fuck-algo/server/internal/service/anthropic"
 	"github.com/buricodes/fuck-algo/server/internal/service/checks"
 	"github.com/buricodes/fuck-algo/server/internal/service/claudecli"
+	"github.com/buricodes/fuck-algo/server/internal/service/clerkauth"
 	"github.com/buricodes/fuck-algo/server/internal/service/elevenlabs"
 	"github.com/buricodes/fuck-algo/server/internal/service/jev"
 	"github.com/buricodes/fuck-algo/server/internal/service/payments"
@@ -32,7 +33,6 @@ const (
 	idleTimeout       = 2 * time.Minute
 	shutdownTimeout   = 30 * time.Second
 	startupTimeout    = 30 * time.Second
-	revealSweepEvery  = time.Hour
 )
 
 func main() {
@@ -64,7 +64,6 @@ func run() error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	go sweepRevealKeys(ctx, db, cfg.Licence.RevealWindow())
 	return serve(ctx, router, cfg.Server.Port)
 }
 
@@ -95,9 +94,12 @@ func openStore(cfg *config.Config) (store.Store, error) {
 
 func deps(cfg *config.Config, db store.Store) httpapi.Deps {
 	s := cfg.Secrets
+	clerk := clerkauth.New(s.ClerkSecretKey, cfg.ClerkAuthorizedParties)
 	d := httpapi.Deps{
 		Config: cfg,
 		Store:  db,
+		Auth:   clerk,
+		Users:  clerk,
 		STT:    elevenlabs.New(s.ElevenLabsKey, cfg.ElevenLabs),
 		Checks: checks.New(checksJudge(cfg),
 			time.Duration(cfg.ChecksCache.TTLHours)*time.Hour, cfg.ChecksCache.MaxEntries, time.Now),
@@ -131,6 +133,12 @@ func textModel(cfg *config.Config, label, provider string, api config.Model) che
 
 func warnMissing(d httpapi.Deps) {
 	slog.Info("ai providers", "checks", d.Config.AI.Checks, "rules", d.Config.AI.Rules)
+	if !d.Auth.Available() {
+		slog.Warn("CLERK_SECRET_KEY is empty: every signed in route answers unavailable (development only)")
+	}
+	if len(d.Config.ClerkAuthorizedParties) == 0 {
+		slog.Warn("CLERK_AUTHORIZED_PARTIES is empty: session tokens are not checked for their origin (development only)")
+	}
 	if !d.Checks.Available() {
 		slog.Warn("AI checks provider is not configured: /v1/checks answers unavailable", "provider", d.Config.AI.Checks)
 	}
@@ -142,21 +150,6 @@ func warnMissing(d httpapi.Deps) {
 	}
 	if !d.Payments.Available() {
 		slog.Warn("Dodo settings are incomplete: /v1/checkout and /v1/webhooks/dodo answer unavailable")
-	}
-}
-
-func sweepRevealKeys(ctx context.Context, db store.Store, window time.Duration) {
-	ticker := time.NewTicker(revealSweepEvery)
-	defer ticker.Stop()
-	for {
-		if err := db.ClearRevealKeys(ctx, time.Now().Add(-window)); err != nil && ctx.Err() == nil {
-			slog.Warn("clearing old reveal keys failed", "error", err)
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-		}
 	}
 }
 

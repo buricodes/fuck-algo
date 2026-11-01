@@ -21,7 +21,7 @@ const Provider = "dodo"
 const EventPaymentSucceeded = "payment.succeeded"
 
 const (
-	metaInstallID = "install_id"
+	metaUserID    = "user_id"
 	metaSessionID = "session_id"
 )
 
@@ -40,7 +40,7 @@ type Settings struct {
 
 type CheckoutRequest struct {
 	SessionID string
-	InstallID string
+	UserID    string
 	Email     string
 }
 
@@ -60,7 +60,7 @@ type PaymentEvent struct {
 	EventType         string
 	PaymentID         string
 	CheckoutSessionID string
-	InstallID         string
+	UserID            string
 	Email             string
 	Amount            int64
 	Currency          string
@@ -94,7 +94,7 @@ func (d *Dodo) CreateCheckout(ctx context.Context, req CheckoutRequest) (Checkou
 			Quantity:  dodopayments.F(int64(1)),
 		}}),
 		Metadata: dodopayments.F(dodopayments.MetadataParam{
-			metaInstallID: shared.UnionString(req.InstallID),
+			metaUserID:    shared.UnionString(req.UserID),
 			metaSessionID: shared.UnionString(req.SessionID),
 		}),
 		ReturnURL: dodopayments.F(d.settings.WebsiteURL + "/thanks?session=" + url.QueryEscape(req.SessionID)),
@@ -149,7 +149,7 @@ func (d *Dodo) ParseWebhook(body []byte, h WebhookHeaders, now time.Time) (*Paym
 		EventType:         env.Type,
 		PaymentID:         p.PaymentID,
 		CheckoutSessionID: metaString(p.Metadata, metaSessionID),
-		InstallID:         metaString(p.Metadata, metaInstallID),
+		UserID:            metaString(p.Metadata, metaUserID),
 		Email:             p.Customer.Email,
 		Amount:            p.TotalAmount,
 		Currency:          p.Currency,

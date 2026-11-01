@@ -14,8 +14,6 @@ const (
 	Unauthorised   Code = "unauthorised"
 	NotFound       Code = "not_found"
 	TrialExhausted Code = "trial_exhausted"
-	LicenceInvalid Code = "licence_invalid"
-	LicenceFull    Code = "licence_full"
 	RateLimited    Code = "rate_limited"
 	Upstream       Code = "upstream"
 	Unavailable    Code = "unavailable"
@@ -83,7 +81,7 @@ func From(err error) *Error {
 
 func statusFor(code Code) int {
 	switch code {
-	case BadRequest, LicenceInvalid:
+	case BadRequest:
 		return http.StatusBadRequest
 	case Unauthorised:
 		return http.StatusUnauthorized
@@ -91,8 +89,6 @@ func statusFor(code Code) int {
 		return http.StatusNotFound
 	case TrialExhausted:
 		return http.StatusPaymentRequired
-	case LicenceFull:
-		return http.StatusConflict
 	case RateLimited:
 		return http.StatusTooManyRequests
 	case Upstream:
