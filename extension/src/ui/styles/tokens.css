@@ -1,0 +1,34 @@
+:root,
+[data-theme='dark'] {
+  --bg: #0a0a0b;
+  --s1: #131315;
+  --s2: #1d1d20;
+  --line: #2a2a2e;
+  --line-soft: #222225;
+  --fg: #f5f5f0;
+  --mut: #8e8e88;
+  --dim: #6a6a66;
+  --off: #4a4a47;
+  --acc: #c6ff00;
+  --onacc: #0a0a0b;
+  --acct: #c6ff00;
+  --rec: #ff4d3d;
+  --font-display: 'Archivo Variable', 'Archivo', system-ui, sans-serif;
+  --font-body: 'Geist Variable', 'Geist', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Geist Mono Variable', 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  color-scheme: dark;
+}
+
+[data-theme='light'] {
+  --bg: #f2f1eb;
+  --s1: #ffffff;
+  --s2: #e6e5de;
+  --line: #d5d4cc;
+  --line-soft: #d5d4cc;
+  --fg: #0a0a0b;
+  --mut: #5c5c56;
+  --dim: #5c5c56;
+  --acct: #4b6600;
+  color-scheme: light;
+}

@@ -1,0 +1,337 @@
+.fa-toggle {
+  flex: none;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--s2);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.fa-toggle span {
+  border-radius: 50%;
+  background: var(--mut);
+  transition: transform 0.18s var(--ease);
+}
+
+.fa-toggle[data-on='true'] {
+  border-color: var(--acc);
+  background: var(--acc);
+}
+
+.fa-toggle[data-on='true'] span {
+  background: var(--onacc);
+}
+
+.fa-toggle-sm {
+  width: 44px;
+  height: 24px;
+  padding: 2px;
+}
+
+.fa-toggle-sm span {
+  width: 18px;
+  height: 18px;
+}
+
+.fa-toggle-sm[data-on='true'] span {
+  transform: translateX(20px);
+}
+
+.fa-toggle-lg {
+  width: 76px;
+  height: 42px;
+  padding: 4px;
+}
+
+.fa-toggle-lg span {
+  width: 32px;
+  height: 32px;
+  transition-duration: 0.22s;
+}
+
+.fa-toggle-lg[data-on='true'] span {
+  transform: translateX(34px);
+}
+
+.fa-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 42px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: none;
+  font: 700 14px var(--font-body);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.fa-btn:has(svg) {
+  padding-left: 14px;
+}
+
+.fa-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.fa-btn-primary {
+  background: var(--acc);
+  color: var(--onacc);
+}
+
+.fa-btn-light {
+  background: var(--fg);
+  color: var(--bg);
+  font-weight: 600;
+}
+
+.fa-btn-ghost {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.fa-btn-ghost:hover {
+  border-color: var(--fg);
+}
+
+.fa-btn-outline {
+  background: transparent;
+  border: 1px solid var(--fg);
+  color: var(--fg);
+  font-weight: 600;
+  height: 40px;
+}
+
+.fa-btn-icon {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--mut);
+}
+
+.fa-btn-icon:has(svg) {
+  padding: 0;
+}
+
+.fa-btn-icon:hover {
+  background: var(--s2);
+  color: var(--fg);
+}
+
+.fa-seg {
+  display: flex;
+  background: var(--s2);
+  border-radius: 999px;
+  padding: 3px;
+}
+
+.fa-seg button {
+  border: none;
+  border-radius: 999px;
+  padding: 7px 12px;
+  font: 600 11px var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: transparent;
+  color: var(--mut);
+  cursor: pointer;
+}
+
+.fa-seg-sm {
+  padding: 2px;
+}
+
+.fa-seg-sm button {
+  padding: 5px 9px;
+  font-size: 10.5px;
+}
+
+.fa-seg button[data-on='true'] {
+  background: var(--acc);
+  color: var(--onacc);
+}
+
+.fa-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: opacity 0.2s;
+}
+
+.fa-stat .display {
+  font-size: 30px;
+  line-height: 1;
+}
+
+.fa-stat > span:last-child {
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--mut);
+  max-width: 80px;
+}
+
+.fa-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--dim);
+  font: 600 10px var(--font-mono);
+  letter-spacing: 0.1em;
+  color: var(--dim);
+  white-space: nowrap;
+}
+
+.fa-pill > span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.fa-pill[data-live='true'] {
+  border-color: var(--acc);
+  color: var(--acc);
+}
+
+.fa-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fa-steps-track {
+  position: relative;
+  height: 20px;
+  margin: 0 10px;
+}
+
+.fa-steps-rail,
+.fa-steps-fill {
+  position: absolute;
+  left: 0;
+  top: 8px;
+  height: 4px;
+  border-radius: 2px;
+}
+
+.fa-steps-rail {
+  right: 0;
+  background: var(--s2);
+}
+
+.fa-steps-fill {
+  background: var(--acc);
+  transition: width 0.2s;
+}
+
+.fa-steps-stop {
+  position: absolute;
+  top: 5px;
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  background: var(--bg);
+  cursor: pointer;
+}
+
+.fa-steps-stop[data-state='filled'] {
+  border: none;
+  background: var(--acc);
+}
+
+.fa-steps-stop[data-state='active'] {
+  top: 0;
+  width: 20px;
+  height: 20px;
+  border: 3px solid var(--bg);
+  background: var(--acc);
+}
+
+.fa-steps-labels {
+  display: flex;
+  justify-content: space-between;
+}
+
+.fa-steps-labels button {
+  border: none;
+  background: none;
+  padding: 0;
+  font: 500 10px var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mut);
+  cursor: pointer;
+}
+
+.fa-steps-labels button[data-on='true'] {
+  color: var(--fg);
+}
+
+.fa-range {
+  position: relative;
+  height: 28px;
+}
+
+.fa-range-rail,
+.fa-range-fill {
+  position: absolute;
+  left: 0;
+  top: 12px;
+  height: 4px;
+  border-radius: 2px;
+}
+
+.fa-range-rail {
+  right: 0;
+  background: var(--s2);
+}
+
+.fa-range-fill {
+  background: var(--acc);
+}
+
+.fa-range-knob {
+  position: absolute;
+  top: 3px;
+  margin-left: -11px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--acc);
+  border: 3px solid var(--bg);
+  box-shadow: 0 0 0 1px var(--acc);
+  pointer-events: none;
+}
+
+.fa-range input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.fa-pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--acc);
+  animation: fa-pulse 1.1s ease-in-out infinite;
+  flex: none;
+}

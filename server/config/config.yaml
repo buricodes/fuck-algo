@@ -1,0 +1,61 @@
+# Fuck Algo server settings. Secrets and per environment values come from
+# environment variables (see .env.example); everything here is safe to commit.
+
+server:
+  port: 8787
+  # Proxies whose X-Forwarded-For header is trusted for client IPs. Empty trusts none.
+  trusted_proxies: []
+
+website_url: http://localhost:3000
+
+trial:
+  voice: 5
+  checks: 300
+
+licence:
+  max_installs: 5
+  # How long the thanks page may show the full key after checkout.
+  reveal_hours: 24
+
+limits:
+  body_bytes: 1048576            # 1 MB
+  transcribe_body_bytes: 6291456 # 6 MB
+  audio_bytes: 5242880           # 5 MB
+
+db:
+  max_conns: 10
+
+anthropic:
+  # Thinking is switched off on both routes. Claude Haiku 5.5 accepts
+  # "disabled"; Claude Sonnet 5.5 rejects it and uses "between_tools" instead.
+  checks:
+    model: claude-haiku-5-5
+    thinking: disabled
+    max_tokens: 4096
+    timeout_seconds: 30
+    max_concurrent: 16
+  rules:
+    model: claude-sonnet-5-5
+    thinking: between_tools
+    max_tokens: 2048
+    timeout_seconds: 30
+    max_concurrent: 8
+
+elevenlabs:
+  stt_model: scribe_v1
+  timeout_seconds: 30
+  max_concurrent: 8
+
+checks_cache:
+  ttl_hours: 24
+  max_entries: 100000
+
+rate_limits:
+  # Per client IP.
+  installs: { per_minute: 10, burst: 5 }
+  checkout: { per_minute: 10, burst: 5 }
+  # Per install.
+  voice_token: { per_minute: 6, burst: 3 }
+  voice_transcribe: { per_minute: 6, burst: 3 }
+  voice_rules: { per_minute: 10, burst: 5 }
+  checks: { per_minute: 60, burst: 20 }

@@ -1,89 +1,70 @@
-# Bui Bui
+<div align="center">
 
-A lightweight Chrome Extension (Manifest V3) for controlling YouTube Shorts with watch count tracking, content filtering, and audio blocking.
+<img src="extension/public/assets/fa-mark.png" alt="Fuck Algo" width="88" />
 
-## Features
+# FUCK ALGO
 
-- **Auto-Scroll After One Watch**: By default, once you've watched a short all the way through once, it auto-scrolls to the next one. You can still scroll back up to rewatch it manually — the count only affects auto-scroll.
-- **Spoiler/Keyword Blocking Everywhere**: Add keywords (e.g. a show title) and matching content is filtered out — both in the Shorts player (auto-skipped) and on the home feed, search results, and sidebar (hidden from the grid entirely).
-- **Audio Blocking**: Block shorts based on detected audio/song names
-- **Watch Count Tracking**: Raise "Max Watch Count" above 1 in the popup if you want to allow rewatches before auto-scrolling
-- **Privacy-First**: All data stored locally, no external APIs, no backend
+**Your feed. Your rules.**
 
-## Installation
+A browser extension that takes spoilers, repeat slop and words you are done with off YouTube, X, Instagram and any other site, before they reach your screen. Tell it what to block out loud.
 
-1. Open Chrome and navigate to `chrome://extensions/`
-2. Enable "Developer mode" (toggle in top right)
-3. Click "Load unpacked"
-4. Select the `scroll` directory
-5. The extension should now be installed
+</div>
 
-## Icon Setup
+---
 
-The extension requires icon files. You can:
+## What it does
 
-1. Create three PNG files: `icon16.png`, `icon48.png`, and `icon128.png`
-2. Place them in the `scroll` directory
-3. Or use any simple icon generator online
+* **Spoiler watchlist.** Add the shows, games and matches you follow. Each title has a strictness: Relaxed (exact title), Balanced (title plus keywords) or Paranoid (anything adjacent, judged by AI).
+* **Repeat blocker.** Caps how many similar videos you see in your last 20 (default 3). Block a whole topic in one tap from "What you've been fed".
+* **Keyword blocks.** Any word or phrase, with an action: hide, blur or skip.
+* **Voice rules.** Say "no GTA 6 spoilers, way fewer gym bro videos, blur anything about crypto" and confirm the rules it heard.
+* **In page overlay.** Blocked items are blurred with a badge, "Show anyway" and "Not interested". Shorts and Reels are skipped automatically.
+* **Activity log.** Everything taken off your feed, with undo.
 
-For a quick solution, you can create simple colored squares as placeholders.
+$5 once. No account, no subscription, no ads.
 
-## Usage
+## Repository
 
-1. Click the extension icon in Chrome toolbar
-2. Configure your settings:
-   - **Max Watch Count**: Defaults to 1 (auto-scroll after one full watch-through). Raise it to allow rewatches first.
-   - **Blocked Keywords**: Add keywords (comma-separated or one per line, e.g. a show title) to hide/skip shorts containing them — both in the Shorts player and on the home feed/search/sidebar
-   - **Blocked Audios**: Add audio/song names to block shorts using those audios
-   - **Toggle**: Enable/disable the extension
-
-3. Navigate to YouTube and the extension will work automatically, on Shorts as well as the regular feed
-
-## How It Works
-
-- **Watch Tracking**: Counts a "watch" only when the short plays all the way through once (detected via the loop back to the start, or the video's `ended` event) — not just a few seconds of viewing
-- **Content Scanning**: Scans title, description, and hashtags for blocked keywords inside the Shorts player, and scans visible tile text (title, channel) on the home feed, search results, and sidebar
-- **Audio Detection**: Extracts audio/song names from available DOM metadata
-- **Auto-Scroll**: Smoothly scrolls to the next short when conditions are met; matching tiles elsewhere on the site are hidden outright
-
-## Storage Structure
-
-Data is stored locally in Chrome storage:
-
-```json
-{
-  "enabled": true,
-  "maxWatchCount": 1,
-  "blockedKeywords": ["keyword1", "keyword2"],
-  "blockedAudios": ["audio1", "audio2"],
-  "videoData": {
-    "videoId123": {
-      "watchCount": 2,
-      "audio": "SPECIALZ - King Gnu"
-    }
-  }
-}
+```
+fuck-algo/
+  extension/   Chrome extension (Manifest V3, React 19, TypeScript, Vite)
+  server/      Go API: installs, licences, AI checks, voice rules, payments
+  docs/        Architecture, design, decisions, security, roadmap, API contract
+  neon.ts      Neon Postgres project config
 ```
 
-## Privacy
+The marketing website lives in its own repository, `fuck-algo-website`, deployed on Vercel.
 
-- All data is stored locally in your browser
-- No external API calls
-- No data collection or tracking
-- No login required
+## Documents
 
-## Development
+* [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): how the system is built, part by part
+* [docs/API.md](docs/API.md): the contract between extension, website and server
+* [docs/DESIGN.md](docs/DESIGN.md): product and visual design, tokens and components
+* [docs/DECISIONS.md](docs/DECISIONS.md): why we chose each major approach
+* [docs/SECURITY.md](docs/SECURITY.md): privacy, threat model and data handling
+* [docs/ROADMAP.md](docs/ROADMAP.md): phases, tasks and acceptance criteria
+* [CLAUDE.md](CLAUDE.md): working instructions for Claude Code
 
-The extension consists of:
+## Quick start
 
-- `manifest.json`: Extension configuration
-- `content.js`: Main logic running on YouTube pages
-- `background.js`: Service worker for initialization
-- `popup.html/css/js`: Settings UI
+Requirements: Node 22, pnpm 10 (via corepack), Go 1.26, Chrome 116 or newer.
 
-## Notes
+```
+cd server && cp .env.example .env && make run      # API on http://localhost:8787
+cd extension && cp .env.example .env && pnpm install && pnpm dev
+```
 
-- Watch tracking and auto-scroll only apply to YouTube Shorts; keyword blocking also runs on the regular home feed/search/sidebar
-- Auto-scroll uses smooth scrolling and keyboard navigation
-- Audio detection depends on YouTube's DOM structure and may vary
-- YouTube changes its page structure often, so selectors may occasionally need updating if a feature stops working
+Then open `chrome://extensions`, turn on Developer mode, choose **Load unpacked** and pick `extension/dist-dev` (or `extension/dist` after `pnpm build`).
+
+The server runs without a database in development (in memory store). Set `DATABASE_URL` to the Neon connection string to persist installs and licences.
+
+## Checks
+
+```
+cd extension && pnpm lint && pnpm typecheck && pnpm test && pnpm build
+cd server && go vet ./... && go test ./...
+```
+
+## Licence
+
+Proprietary. All rights reserved.
