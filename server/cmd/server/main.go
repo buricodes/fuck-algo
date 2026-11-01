@@ -17,7 +17,9 @@ import (
 	httpapi "github.com/buricodes/fuck-algo/server/internal/http"
 	"github.com/buricodes/fuck-algo/server/internal/service/anthropic"
 	"github.com/buricodes/fuck-algo/server/internal/service/checks"
+	"github.com/buricodes/fuck-algo/server/internal/service/claudecli"
 	"github.com/buricodes/fuck-algo/server/internal/service/elevenlabs"
+	"github.com/buricodes/fuck-algo/server/internal/service/jev"
 	"github.com/buricodes/fuck-algo/server/internal/service/payments"
 	"github.com/buricodes/fuck-algo/server/internal/service/voice"
 	"github.com/buricodes/fuck-algo/server/internal/store"
@@ -97,9 +99,9 @@ func deps(cfg *config.Config, db store.Store) httpapi.Deps {
 		Config: cfg,
 		Store:  db,
 		STT:    elevenlabs.New(s.ElevenLabsKey, cfg.ElevenLabs),
-		Checks: checks.New(anthropic.New("checks", s.AnthropicKey, cfg.Anthropic.Checks),
+		Checks: checks.New(checksJudge(cfg),
 			time.Duration(cfg.ChecksCache.TTLHours)*time.Hour, cfg.ChecksCache.MaxEntries, time.Now),
-		Voice: voice.New(anthropic.New("voice-rules", s.AnthropicKey, cfg.Anthropic.Rules)),
+		Voice: voice.New(textModel(cfg, "voice-rules", cfg.AI.Rules, cfg.Anthropic.Rules)),
 		Payments: payments.NewDodo(payments.Settings{
 			APIKey:        s.DodoAPIKey,
 			WebhookSecret: s.DodoWebhookSecret,
@@ -113,9 +115,27 @@ func deps(cfg *config.Config, db store.Store) httpapi.Deps {
 	return d
 }
 
+func checksJudge(cfg *config.Config) checks.Judge {
+	if cfg.AI.Checks == config.ProviderJev {
+		return checks.NewJevJudge(jev.New(cfg.Secrets.OpenRouterKey, cfg.Jev))
+	}
+	return checks.NewModelJudge(textModel(cfg, "checks", cfg.AI.Checks, cfg.Anthropic.Checks))
+}
+
+func textModel(cfg *config.Config, label, provider string, api config.Model) checks.Model {
+	if provider == config.ProviderCLI {
+		return claudecli.New(label, cfg.ClaudeCLI)
+	}
+	return anthropic.New(label, cfg.Secrets.AnthropicKey, api)
+}
+
 func warnMissing(d httpapi.Deps) {
+	slog.Info("ai providers", "checks", d.Config.AI.Checks, "rules", d.Config.AI.Rules)
 	if !d.Checks.Available() {
-		slog.Warn("ANTHROPIC_API_KEY is empty: /v1/checks and /v1/voice/rules answer unavailable")
+		slog.Warn("AI checks provider is not configured: /v1/checks answers unavailable", "provider", d.Config.AI.Checks)
+	}
+	if !d.Voice.Available() {
+		slog.Warn("voice rules provider is not configured: /v1/voice/rules answers unavailable", "provider", d.Config.AI.Rules)
 	}
 	if !d.STT.Available() {
 		slog.Warn("ELEVENLABS_API_KEY is empty: /v1/voice/token and /v1/voice/transcribe answer unavailable")

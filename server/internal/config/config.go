@@ -20,6 +20,9 @@ type Config struct {
 	Licence     Licence     `yaml:"licence"`
 	Limits      Limits      `yaml:"limits"`
 	DB          DB          `yaml:"db"`
+	AI          AI          `yaml:"ai"`
+	Jev         Jev         `yaml:"jev"`
+	ClaudeCLI   ClaudeCLI   `yaml:"claude_cli"`
 	Anthropic   Anthropic   `yaml:"anthropic"`
 	ElevenLabs  ElevenLabs  `yaml:"elevenlabs"`
 	ChecksCache ChecksCache `yaml:"checks_cache"`
@@ -56,6 +59,30 @@ type Limits struct {
 
 type DB struct {
 	MaxConns int32 `yaml:"max_conns"`
+}
+
+const (
+	ProviderJev       = "jev"
+	ProviderCLI       = "cli"
+	ProviderAnthropic = "anthropic"
+)
+
+type AI struct {
+	Checks string `yaml:"checks"`
+	Rules  string `yaml:"rules"`
+}
+
+type Jev struct {
+	Model          string `yaml:"model"`
+	TimeoutSeconds int    `yaml:"timeout_seconds"`
+	MaxConcurrent  int    `yaml:"max_concurrent"`
+}
+
+type ClaudeCLI struct {
+	Binary         string `yaml:"binary"`
+	Model          string `yaml:"model"`
+	TimeoutSeconds int    `yaml:"timeout_seconds"`
+	MaxConcurrent  int    `yaml:"max_concurrent"`
 }
 
 type Anthropic struct {
@@ -99,6 +126,7 @@ type Rate struct {
 type Secrets struct {
 	DatabaseURL       string
 	AnthropicKey      string
+	OpenRouterKey     string
 	ElevenLabsKey     string
 	DodoAPIKey        string
 	DodoWebhookSecret string
@@ -133,9 +161,12 @@ func (c *Config) applyEnv() error {
 	}
 	c.WebsiteURL = strings.TrimRight(envOr("WEBSITE_URL", c.WebsiteURL), "/")
 	c.ExtensionOrigins = splitList(os.Getenv("EXTENSION_ORIGINS"))
+	c.AI.Checks = envOr("AI_CHECKS", c.AI.Checks)
+	c.AI.Rules = envOr("AI_RULES", c.AI.Rules)
 	c.Secrets = Secrets{
 		DatabaseURL:       os.Getenv("DATABASE_URL"),
 		AnthropicKey:      os.Getenv("ANTHROPIC_API_KEY"),
+		OpenRouterKey:     os.Getenv("OPEN_ROUTER_KEY"),
 		ElevenLabsKey:     os.Getenv("ELEVENLABS_API_KEY"),
 		DodoAPIKey:        os.Getenv("DODO_PAYMENTS_API_KEY"),
 		DodoWebhookSecret: os.Getenv("DODO_PAYMENTS_WEBHOOK_SECRET"),
@@ -161,10 +192,25 @@ func (c *Config) validate() error {
 	if !c.IsDevelopment() && c.Secrets.DatabaseURL == "" {
 		errs = append(errs, errors.New("DATABASE_URL is required outside development"))
 	}
+	if !oneOf(c.AI.Checks, ProviderJev, ProviderAnthropic, ProviderCLI) {
+		errs = append(errs, errors.New("ai.checks must be jev, anthropic or cli"))
+	}
+	if !oneOf(c.AI.Rules, ProviderAnthropic, ProviderCLI) {
+		errs = append(errs, errors.New("ai.rules must be anthropic or cli"))
+	}
 	if c.WebsiteURL == "" {
 		errs = append(errs, errors.New("website_url (or WEBSITE_URL) is required"))
 	}
 	return errors.Join(errs...)
+}
+
+func oneOf(value string, options ...string) bool {
+	for _, o := range options {
+		if value == o {
+			return true
+		}
+	}
+	return false
 }
 
 func envOr(key, fallback string) string {

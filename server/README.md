@@ -75,13 +75,13 @@ pkg/                   error codes, response envelope, outbound HTTP, Standard W
 
 **Trial spending** is a single atomic `UPDATE` that only succeeds while the counter is under the limit and returns how much it granted, so parallel requests cannot overspend. If the upstream call then fails, the spend is refunded. An install with an active licence never touches the counters.
 
-**AI checks** send every uncached item in one Claude Haiku call with a JSON schema. Only Paranoid watchlist titles go to the model; Relaxed and Balanced are left to the extension. The model is told the existing topic labels so it reuses them. Results are cached in memory for 24 hours keyed by item id and a hash of the Paranoid watchlist, so only uncached items cost trial checks.
+**AI checks** (`AI_CHECKS=jev`, the default) ask Jev through OpenRouter two typed choice questions per item, in parallel: which Paranoid title it is plausibly about (or none, counted only at 50% or more), and which topic it is, picked from the person's own topics plus a fixed list in `internal/service/checks/topics.go`. Only Paranoid watchlist titles are judged; Relaxed and Balanced are left to the extension. `AI_CHECKS=anthropic` or `cli` sends the batch to Claude Haiku 5.5 with a JSON schema instead. Results are cached in memory for 24 hours keyed by item id and a hash of the Paranoid watchlist, so only uncached items cost trial checks.
 
-**Voice rules** go to Claude Sonnet with a prompt that maps casual speech to spoiler, repeat and keyword rules, resolves expiries such as "until Friday" against the client's `now`, and is told never to invent rules. The server then cleans the result: unknown kinds, bad values and past expiries are dropped and the list is capped at eight.
+**Voice rules** go to Claude Haiku 5.5 with a prompt that maps casual speech to spoiler, repeat and keyword rules, resolves expiries such as "until Friday" against the client's `now`, and is told never to invent rules. The server then cleans the result: unknown kinds, bad values and past expiries are dropped and the list is capped at eight.
 
 **Payments** are one time. `POST /v1/checkout` creates our own `cks_` session, then a Dodo checkout carrying `install_id` and `session_id` in its metadata. The `payment.succeeded` webhook is verified with Standard Webhooks signatures and handled in one transaction that records the webhook id, creates the licence (unique on the Dodo payment id), marks the session paid and activates the install. Replays are harmless.
 
-**Thinking** is switched off for both models. Claude Haiku 5.5 takes `thinking: {type: "disabled"}`; Claude Sonnet 5.5 rejects that and takes `between_tools` instead, which is what `config.yaml` sets.
+**Claude CLI in development.** `AI_RULES=cli` (the default) runs `claude -p --model claude-haiku-5-5` with no tools, no session and `--json-schema`, using the local Claude login (the server strips `ANTHROPIC_API_KEY` from its environment so API credits are not used). Set `AI_RULES=anthropic` with `ANTHROPIC_API_KEY` for the API. Thinking is switched off on the API path.
 
 ## Deploying
 

@@ -36,11 +36,15 @@ Status: accepted
 
 Reason: The same stack as server-bui (Gin, pgx, slog, Dodo, ElevenLabs, Anthropic), so proven code is reused and one person can run both.
 
-## 5. Claude Haiku for checks, Claude Sonnet for voice rules
+## 5. Jev for checks, Claude Haiku 5.5 for voice rules
 
 Status: accepted
 
-Reason: Checks are frequent, short and must be cheap. Voice rules are rare and must understand casual speech, dates ("until Friday") and intent. Both use structured JSON output, so replies are validated, never parsed from prose.
+Reason: Checks only ever pick from a list: which watched title (or none) and which topic. Jev (`typesafe/jev-1.13` on OpenRouter, as in Bui) answers typed choice questions with probabilities, costs about $0.00002 a call and keeps topic labels stable because it picks from a fixed list plus the person's own topics. Voice rules need generated names, keywords and dates, so they use Claude Haiku 5.5 with structured output.
+
+During development the voice rules run through the local Claude CLI (`claude -p`, no tools, no session), which needs no API credits. Production switches `AI_RULES=anthropic` with an API key. Checks can also fall back to `anthropic` or `cli`.
+
+Trade off: The CLI is slow (about 6 seconds) and serial, fine for development, not for real traffic.
 
 ## 6. ElevenLabs realtime speech to text through an offscreen document
 

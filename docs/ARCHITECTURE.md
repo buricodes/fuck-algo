@@ -18,9 +18,9 @@
 ```
  ┌──────────────── Chrome ────────────────┐            ┌──────── server (Go) ────────┐
  │ content script  (every http/https tab)  │            │  /v1/installs  /v1/me        │
- │   site adapter → engine → overlay       │            │  /v1/checks   → Claude Haiku │
+ │   site adapter → engine → overlay       │            │  /v1/checks   → Jev          │
  │        │ checks, activity, seen          │   HTTPS    │  /v1/voice/*  → ElevenLabs,  │
- │        ▼                                 │ ─────────▶ │                 Claude Sonnet│
+ │        ▼                                 │ ─────────▶ │                 Claude Haiku │
  │ background service worker               │  Bearer    │  /v1/checkout → Dodo         │
  │   api client · checks batcher · ledger  │  install   │  /v1/webhooks/dodo           │
  │        ▲ voice events                    │  token     │        │                     │

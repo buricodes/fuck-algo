@@ -126,7 +126,7 @@ func newEnvWith(t *testing.T, cfg *config.Config) *testEnv {
 		Config:   cfg,
 		Store:    e.store,
 		STT:      e.stt,
-		Checks:   checks.New(e.checks, 24*time.Hour, 1000, clock),
+		Checks:   checks.New(checks.NewModelJudge(e.checks), 24*time.Hour, 1000, clock),
 		Voice:    voice.New(e.rules),
 		Payments: e.payments,
 		Now:      clock,

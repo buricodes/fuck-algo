@@ -1,10 +1,47 @@
 package checks
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/buricodes/fuck-algo/server/internal/domain"
+	"github.com/buricodes/fuck-algo/server/internal/prompts"
+	"github.com/buricodes/fuck-algo/server/pkg/apperr"
 )
+
+type Model interface {
+	Available() bool
+	JSON(ctx context.Context, system, user string, schema json.RawMessage) ([]byte, error)
+}
+
+type ModelJudge struct {
+	model Model
+}
+
+func NewModelJudge(model Model) *ModelJudge { return &ModelJudge{model: model} }
+
+func (j *ModelJudge) Available() bool { return j.model.Available() }
+
+func (j *ModelJudge) Judge(ctx context.Context, in Input) ([]Judgement, error) {
+	user, err := json.Marshal(modelInput(in))
+	if err != nil {
+		return nil, fmt.Errorf("checks: encoding input: %w", err)
+	}
+	raw, err := j.model.JSON(ctx, prompts.Checks, string(user), schema)
+	if err != nil {
+		return nil, err
+	}
+	var out modelOutput
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, &apperr.UpstreamError{Provider: "model", Err: fmt.Errorf("checks: decoding reply: %w", err)}
+	}
+	judgements := make([]Judgement, 0, len(out.Results))
+	for _, r := range out.Results {
+		judgements = append(judgements, Judgement{I: r.I, SpoilerOf: r.SpoilerOf, Topic: r.Topic})
+	}
+	return judgements, nil
+}
 
 var schema = json.RawMessage(`{
   "type": "object",
@@ -55,16 +92,16 @@ type modelOutput struct {
 	} `json:"results"`
 }
 
-func modelInput(p *Plan, items []domain.CheckItem) input {
-	in := input{Watchlist: []watchInput{}, ExistingTopics: []string{}, Items: make([]itemInput, len(items))}
-	for _, w := range p.paranoid {
-		in.Watchlist = append(in.Watchlist, watchInput{Name: w.Name, Type: w.Type, Keywords: w.Keywords})
+func modelInput(in Input) input {
+	out := input{Watchlist: []watchInput{}, ExistingTopics: []string{}, Items: make([]itemInput, len(in.Items))}
+	for _, w := range in.Paranoid {
+		out.Watchlist = append(out.Watchlist, watchInput{Name: w.Name, Type: w.Type, Keywords: w.Keywords})
 	}
-	if p.topics != nil {
-		in.ExistingTopics = p.topics
+	if in.Topics != nil {
+		out.ExistingTopics = in.Topics
 	}
-	for i, item := range items {
-		in.Items[i] = itemInput{I: i, Site: item.Site, Title: item.Title, Channel: item.Channel, Text: item.Text}
+	for i, item := range in.Items {
+		out.Items[i] = itemInput{I: i, Site: item.Site, Title: item.Title, Channel: item.Channel, Text: item.Text}
 	}
-	return in
+	return out
 }

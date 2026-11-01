@@ -12,10 +12,10 @@
 | Data | Sent to | When | Kept |
 | --- | --- | --- | --- |
 | Extension version and browser name | Our server | First run | With the install row |
-| Item title (≤300 chars), channel (≤120), snippet (≤600), site | Our server, then Anthropic | AI checks, only when a Paranoid title exists or the repeat blocker is on | In memory cache for 24 hours, never written to the database |
-| Paranoid watchlist titles and their keywords | Our server, then Anthropic | With AI checks | Not stored |
+| Item title (≤300 chars), channel (≤120), snippet (≤600), site | Our server, then OpenRouter (Jev) | AI checks, only when a Paranoid title exists or the repeat blocker is on | In memory cache for 24 hours, never written to the database |
+| Paranoid watchlist titles and their keywords | Our server, then OpenRouter (Jev) | With AI checks | Not stored |
 | Microphone audio | ElevenLabs (realtime, with a single use token) or our server then ElevenLabs (fallback upload) | Only while the voice panel is listening | Not stored by us |
-| Transcript, names of existing rules | Our server, then Anthropic | Turning speech into rules | Not stored |
+| Transcript, names of existing rules | Our server, then Claude Haiku (CLI in development, Anthropic API in production) | Turning speech into rules | Not stored |
 | Licence key | Our server | Activation | Only its SHA-256 and last four characters |
 
 Never sent: page URLs, cookies, browsing history, anything typed into a website, account names on the sites.

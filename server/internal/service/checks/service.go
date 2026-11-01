@@ -4,15 +4,11 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
-	"fmt"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/buricodes/fuck-algo/server/internal/domain"
-	"github.com/buricodes/fuck-algo/server/internal/prompts"
-	"github.com/buricodes/fuck-algo/server/pkg/apperr"
 )
 
 const (
@@ -20,9 +16,21 @@ const (
 	fallbackTopic = "General"
 )
 
-type Model interface {
+type Judgement struct {
+	I         int
+	SpoilerOf string
+	Topic     string
+}
+
+type Input struct {
+	Paranoid []domain.WatchContext
+	Topics   []string
+	Items    []domain.CheckItem
+}
+
+type Judge interface {
 	Available() bool
-	JSON(ctx context.Context, system, user string, schema json.RawMessage) ([]byte, error)
+	Judge(ctx context.Context, in Input) ([]Judgement, error)
 }
 
 type Request struct {
@@ -40,16 +48,16 @@ type Plan struct {
 }
 
 type Service struct {
-	model Model
+	judge Judge
 	cache *cache
 	now   func() time.Time
 }
 
-func New(model Model, ttl time.Duration, size int, now func() time.Time) *Service {
-	return &Service{model: model, cache: newCache(ttl, size), now: now}
+func New(judge Judge, ttl time.Duration, size int, now func() time.Time) *Service {
+	return &Service{judge: judge, cache: newCache(ttl, size), now: now}
 }
 
-func (s *Service) Available() bool { return s.model.Available() }
+func (s *Service) Available() bool { return s.judge.Available() }
 
 func (s *Service) Plan(req Request) *Plan {
 	paranoid := paranoidTitles(req.Watchlist)
@@ -74,25 +82,17 @@ func (s *Service) Judge(ctx context.Context, p *Plan, items []domain.CheckItem) 
 	if len(items) == 0 {
 		return 0, nil
 	}
-	user, err := json.Marshal(modelInput(p, items))
-	if err != nil {
-		return 0, fmt.Errorf("checks: encoding input: %w", err)
-	}
-	raw, err := s.model.JSON(ctx, prompts.Checks, string(user), schema)
+	out, err := s.judge.Judge(ctx, Input{Paranoid: p.paranoid, Topics: p.topics, Items: items})
 	if err != nil {
 		return 0, err
-	}
-	var out modelOutput
-	if err := json.Unmarshal(raw, &out); err != nil {
-		return 0, &apperr.UpstreamError{Provider: "anthropic", Err: fmt.Errorf("checks: decoding reply: %w", err)}
 	}
 	return s.apply(p, items, out), nil
 }
 
-func (s *Service) apply(p *Plan, items []domain.CheckItem, out modelOutput) int {
+func (s *Service) apply(p *Plan, items []domain.CheckItem, out []Judgement) int {
 	now := s.now()
 	judged := 0
-	for _, r := range out.Results {
+	for _, r := range out {
 		if r.I < 0 || r.I >= len(items) {
 			continue
 		}
