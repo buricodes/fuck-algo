@@ -46,6 +46,5 @@ cd server && make run | make test | make lint | make build
 
 ## Things to ask the human about
 
-* Final domain names for the API and the website.
-* Real brand assets (`fa-mark.png`, `fa-hero.png`) to replace the placeholders.
+* A custom domain (the website runs on https://fuck-algo-website.vercel.app for now) and where to host the API.
 * Dodo product id and webhook secret before the first paid release.

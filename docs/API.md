@@ -4,7 +4,7 @@ The contract between the extension (`extension/`), the website (separate repo `f
 
 ## Basics
 
-* Base URL: set per environment. Local `http://localhost:8787`, production `https://api.fuckalgo.app` (placeholder until the domain is final).
+* Base URL: set per environment. Local `http://localhost:8787`, production is the deployed server URL (no custom domain yet; the website runs on `https://fuck-algo-website.vercel.app`).
 * All bodies are JSON (`Content-Type: application/json`) unless stated.
 * Every response uses one envelope:
 

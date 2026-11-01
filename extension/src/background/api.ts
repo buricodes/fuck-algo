@@ -4,7 +4,7 @@ import type { ApiErrorCode, Install, Result } from '@/shared/types'
 export const API_URL =
   (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8787'
 export const WEBSITE_URL =
-  (import.meta.env.VITE_WEBSITE_URL as string | undefined) ?? 'https://fuckalgo.app'
+  (import.meta.env.VITE_WEBSITE_URL as string | undefined) ?? 'https://fuck-algo-website.vercel.app'
 
 type Envelope<T> =
   { ok: true; data: T } | { ok: false; error: { code: ApiErrorCode; message: string } }

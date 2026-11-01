@@ -53,7 +53,8 @@ Acceptance: a test mode payment shows a key on the thanks page and unlocks the p
 
 ## Phase 5: Launch
 
-* [ ] Real brand assets in place of the placeholders
+* [x] Real brand assets (hooded eye mark, cyber mascot hero)
+* [ ] Custom domain (website on Vercel's default domain for now)
 * [ ] Chrome Web Store listing, screenshots and privacy answers from docs/SECURITY.md
 * [ ] Error reporting and basic server metrics
 

@@ -15,7 +15,7 @@ Load `dist-dev` unpacked from `chrome://extensions`. `pnpm build` writes a produ
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `VITE_API_URL` | `http://localhost:8787` | The Go server |
-| `VITE_WEBSITE_URL` | `http://localhost:5173` | The website, used when checkout cannot start |
+| `VITE_WEBSITE_URL` | `https://fuck-algo-website.vercel.app` | The website, used when checkout cannot start |
 
 ## Layout
 
@@ -29,4 +29,4 @@ pnpm lint && pnpm typecheck && pnpm test && pnpm build
 
 ## Brand assets
 
-`public/assets/fa-mark.png` and `public/icons/icon-*.png` are placeholders. Replace them with the real mark at the same file names.
+`public/assets/fa-mark.png` and `public/icons/icon-*.png` are cut from the hooded eye mascot. The source art lives in the website repo under `brand/`.

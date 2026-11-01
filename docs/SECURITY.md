@@ -43,4 +43,4 @@ Never sent: page URLs, cookies, browsing history, anything typed into a website,
 
 ## Reporting
 
-Report security issues to security@fuckalgo.app (placeholder until the domain is final). Please do not open a public issue.
+Report security issues to buricodess@gmail.com. Please do not open a public issue.
